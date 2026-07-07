@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lanmo 架构设计文档</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vue-flow/core@1.48.2/dist/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vue-flow/core@1.48.2/dist/theme-default.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vue-flow/controls@1.1.3/dist/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vue-flow/background@1.3.2/dist/style.css">
+  <style>
+    :root {
+      --bg: #f8f9fb;
+      --surface: #ffffff;
+      --text: #1a1d26;
+      --muted: #5c6370;
+      --border: #e2e6ed;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+      --code-bg: #f1f5f9;
+      --blockquote-bg: #fffbeb;
+      --blockquote-border: #f59e0b;
+      --nav-width: 260px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+    .layout { display: flex; min-height: 100vh; }
+    nav {
+      width: var(--nav-width);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 1rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    nav h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    nav ul { list-style: none; }
+    nav li { margin-bottom: 0.35rem; }
+    nav a {
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      display: block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+    }
+    nav a:hover { background: var(--accent-soft); color: var(--accent); }
+    main {
+      flex: 1;
+      max-width: 1100px;
+      padding: 2.5rem 3rem 4rem;
+    }
+    header.doc-header {
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+    header.doc-header h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+    header.doc-header .meta { color: var(--muted); font-size: 0.9rem; }
+    section {
+      margin-bottom: 3rem;
+      scroll-margin-top: 1.5rem;
+    }
+    section h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    section h3 { font-size: 1.15rem; margin: 1.5rem 0 0.75rem; }
+    section h4 { font-size: 1rem; margin: 1.25rem 0 0.5rem; color: var(--muted); }
+    p { margin-bottom: 0.85rem; }
+    ul, ol { margin: 0.75rem 0 0.75rem 1.5rem; }
+    li { margin-bottom: 0.35rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 0.6rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th { background: #f1f5f9; font-weight: 600; }
+    tr:nth-child(even) td { background: #fafbfc; }
+    tr:last-child td { border-bottom: none; }
+    blockquote {
+      background: var(--blockquote-bg);
+      border-left: 4px solid var(--blockquote-border);
+      padding: 0.85rem 1.1rem;
+      margin: 1rem 0;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.95rem;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.15rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      font-size: 0.85rem;
+      line-height: 1.55;
+    }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.88em;
+    }
+    p code, li code, td code {
+      background: var(--code-bg);
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+    }
+    .diagram-note {
+      color: var(--muted);
+      font-size: 0.88rem;
+      margin: 0.5rem 0 1rem;
+    }
+    .mermaid {
+      display: none;
+    }
+    .vue-flow-panel {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface);
+      margin: 1rem 0 1.5rem;
+      position: relative;
+    }
+    .vue-flow-panel--tall { height: 880px; }
+    .vue-flow-panel--md { height: 560px; }
+    .vue-flow-panel--sm { height: 420px; }
+    .vue-flow-panel > div {
+      width: 100%;
+      height: 100%;
+    }
+    .vue-flow-panel .vue-flow__node {
+      font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .vue-flow-panel .vue-flow__edge-textbg {
+      fill: #ffffff;
+      fill-opacity: 0.96;
+    }
+    .vue-flow-panel .vue-flow__edge-text {
+      font-size: 10px !important;
+      fill: #1e293b !important;
+    }
+    .flow-hint {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.5rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+    .flow-hint span::before {
+      content: "• ";
+      color: var(--accent);
+    }
+    .flow-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      margin: 0.75rem 0 1rem;
+      font-size: 0.82rem;
+    }
+    .flow-legend i {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .tag {
+      display: inline-block;
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    @media print {
+      nav { display: none; }
+      main { max-width: 100%; padding: 1rem; }
+    }
+    @media (max-width: 900px) {
+      .layout { flex-direction: column; }
+      nav {
+        width: 100%;
+        height: auto;
+        position: relative;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      main { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <h2>目录</h2>
+    <ul>
+      <li><a href="#sec-01">1. 项目定位</a></li>
+      <li><a href="#sec-02">2. 技术栈总览</a></li>
+      <li><a href="#sec-03">3. 总体架构</a></li>
+      <li><a href="#sec-04">4. 存储架构</a></li>
+      <li><a href="#sec-05">5. Provider Registry</a></li>
+      <li><a href="#sec-06">6. RAG 与 BM25</a></li>
+      <li><a href="#sec-07">7. 检索准确性工程</a></li>
+      <li><a href="#sec-08">8. 配置体系</a></li>
+      <li><a href="#sec-09">9. LangGraph 流程</a></li>
+      <li><a href="#sec-10">10. Agent Skills</a></li>
+      <li><a href="#sec-11">11. MCP</a></li>
+      <li><a href="#sec-12">12. Hooks 评估</a></li>
+      <li><a href="#sec-13">13. Ingestion</a></li>
+      <li><a href="#sec-14">14. 对话历史</a></li>
+      <li><a href="#sec-15">15. API 与数据格式</a></li>
+      <li><a href="#sec-16">16. 路线图与评测</a></li>
+      <li><a href="#appendix">附录</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <header class="doc-header">
+      <h1>Lanmo 架构设计文档</h1>
+      <p class="meta">
+        <span class="tag">版本 1.0</span>
+        &nbsp;·&nbsp; 设计定稿 · Phase 1 待实现
+        &nbsp;·&nbsp; 更新日期：2026-07-07
+      </p>
+      <p style="margin-top:0.75rem;color:var(--muted);font-size:0.9rem;">
+        可扩展多能力 Agent 平台 · Poetry + FastAPI · LangGraph · Agent Skills · PostgreSQL + Neo4j
+      </p>
+    </header>
+
+    <!-- 第 1 章 -->
+    <section id="sec-01">
+      <h2>1. 项目定位</h2>
+      <p><strong>lanmo</strong> 是一个可扩展的多能力 Agent 平台（当前阶段以学习为主）。</p>
+      <table>
+        <thead><tr><th>维度</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>API 层</td><td>Poetry + FastAPI</td></tr>
+          <tr><td>编排引擎</td><td>LangGraph 状态机式工作流</td></tr>
+          <tr><td>专业能力</td><td>Agent Skills 标准（<code>agentskills.io</code>），目录式可插拔</td></tr>
+          <tr><td>第一业务域</td><td>写小说；后续扩展视频制作、导演、分镜等</td></tr>
+          <tr><td>架构思想</td><td>Anthropic（Workflow/Agent、Context Engineering、Skills）+ OpenAI 工程纪律（增量构建、Guardrails、评测驱动）</td></tr>
+        </tbody>
+      </table>
+      <h3>当前代码状态</h3>
+      <p>仅有 <code>GET /api/v1/chat</code>（<code>app/api/chat.py</code>）问答骨架，返回简单字符串。</p>
+      <ul>
+        <li><strong>第一版 API 范围</strong>：仅 chat 一个接口（目标演进为 POST SSE 流式问答）</li>
+        <li><strong>数据喂养</strong>：暂不设计接口，未来接入既有喂养系统改造</li>
+        <li><strong>路由注册</strong>：<code>app/api/router_loader.py</code> 自动扫描，无需手动改 <code>router.py</code></li>
+      </ul>
+    </section>
+
+    <!-- 第 2 章 -->
+    <section id="sec-02">
+      <h2>2. 技术栈总览</h2>
+      <table>
+        <thead><tr><th>层级</th><th>选型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>API</td><td>FastAPI + SSE</td><td>流式对话接口</td></tr>
+          <tr><td>编排</td><td>LangGraph</td><td>状态机式 Agent 工作流</td></tr>
+          <tr><td>LLM</td><td>Provider Registry</td><td>智谱 GLM 为默认；通过适配器接入<strong>任意厂商</strong>任意模型</td></tr>
+          <tr><td>RAG</td><td>LangChain 生态</td><td>不自写向量引擎；Retriever/文档链由 LangChain，编排由 LangGraph</td></tr>
+          <tr><td>业务库</td><td><strong>PostgreSQL</strong></td><td>用户、会话、文档、任务、全文检索</td></tr>
+          <tr><td>知识库</td><td><strong>Neo4j</strong></td><td>Chunk/Entity 图谱、向量索引、GraphRAG</td></tr>
+          <tr><td>Skills</td><td>Agent Skills 标准</td><td>目录式 <code>skills/*/SKILL.md</code></td></tr>
+          <tr><td>MCP</td><td>Model Context Protocol</td><td>外部工具/数据源标准化接入（第一版预留）</td></tr>
+          <tr><td>Hooks</td><td><strong>暂不纳入平台</strong></td><td>见第 12 章；IDE Hooks 与平台 Hooks 分离</td></tr>
+          <tr><td>配置</td><td>Profile 选档</td><td>Convention over Configuration</td></tr>
+        </tbody>
+      </table>
+      <p><strong>已排除（第一版）</strong>：Milvus（硬件不足）、MongoDB、ChromaDB、Meilisearch</p>
+      <h3>数据库版本要求</h3>
+      <table>
+        <thead><tr><th>组件</th><th>用户版本</th><th>是否符合</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>PostgreSQL</td><td><strong>17.10</strong></td><td>完全符合</td>
+            <td>当前环境版本；原生支持 <code>tsvector</code> 全文、<code>JSONB</code>、事务；可选安装 <code>pgvector</code> 作备用向量存储。向量检索主存 Neo4j，PG 承担业务真相源与关键词召回</td>
+          </tr>
+          <tr>
+            <td>Neo4j</td><td><strong>5.15.0-community</strong></td><td>符合</td>
+            <td>Vector Index GA（5.13+）、<code>CREATE VECTOR INDEX</code>（5.15+）、全文索引、图遍历均满足；Community 单实例足够学习/MVP</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 第 3 章 -->
+    <section id="sec-03">
+      <h2>3. 总体架构</h2>
+      <p>本文档<strong>全部流程图</strong>均采用 Vue Flow 渲染（第 3、4、7、9、11、13 章），支持拖拽节点自行调整布局。节点间数据契约见<strong>第 15 章</strong>。</p>
+      <p>全流程采用 <strong>Vue Flow</strong> 交互式流程图（与 <a href="https://vueflow.dev/" target="_blank" rel="noopener">vueflow.dev</a> 同款组件）。支持<strong>滚轮缩放、拖拽平移、拖拽节点</strong>调整布局，右下角提供放大 / 缩小 / 适应画布按钮。</p>
+      <p class="diagram-note"><code>router_loader</code> 仅在服务<strong>启动时</strong>注册路由，不参与单次请求，故未画入流程图。</p>
+
+      <h3>全流程交互图（请求 → 响应）</h3>
+      <div class="flow-hint">
+        <span>滚轮：缩放</span>
+        <span>按住空白处拖拽：平移画布</span>
+        <span>拖拽节点：调整位置，避免标签互相遮挡</span>
+        <span>右下角 Controls：+ / − / 适应视图</span>
+        <span>连线标签 ①–⑲ 与下表步骤一致</span>
+      </div>
+      <div class="flow-legend">
+        <span><i style="background:#e0e7ff;border:1px solid #4338ca"></i>FastAPI 接入层</span>
+        <span><i style="background:#dcfce7;border:1px solid #16a34a"></i>LangGraph 节点</span>
+        <span><i style="background:#fef3c7;border:1px solid #d97706"></i>检索子链 ⑨⑩⑪⑫（左侧竖排）</span>
+        <span><i style="background:#ffedd5;border:1px solid #ea580c"></i>Web 直接 / 兜底（右侧）</span>
+        <span><i style="border:2px dashed #ea580c;background:#fff7ed"></i>⑩ 无证据兜底虚线</span>
+        <span><i style="background:#dcfce7;border:1px solid #16a34a"></i>分支 A 查自己库（绿线）</span>
+        <span><i style="background:#ffedd5;border:1px solid #ea580c"></i>分支 B 实时库外（橙线）</span>
+        <span><i style="background:#dbeafe;border:1px solid #2563eb"></i>分支 C 跳过检索（蓝线）</span>
+        <span><i style="background:#fff7ed;border:2px solid #ea580c"></i>路由决策 route_question</span>
+        <span><i style="background:#ffedd5;border:1px solid #ea580c"></i>PostgreSQL / Neo4j</span>
+        <span><i style="background:#ede9fe;border:1px solid #7c3aed"></i>LLM Provider</span>
+      </div>
+      <div class="vue-flow-panel vue-flow-panel--tall">
+        <div id="architecture-flow-root"></div>
+      </div>
+
+      <h3>交互图阅读指引</h3>
+      <table>
+        <thead><tr><th>元素</th><th>含义</th></tr></thead>
+        <tbody>
+          <tr><td>蓝色实线 + 白底标签</td><td>主流程或侧向调用（①–⑲）；<strong>每条逻辑仅一根线</strong>，往返合并在标签文案中</td></tr>
+          <tr><td>绿色分支线 A</td><td>问题涉及<strong>自己库内</strong>的设定/章节 → 走检索（代码枚举 <code>project</code>）</td></tr>
+          <tr><td>橙色分支线 B</td><td>问题问<strong>实时/库外</strong>信息 → 直接 Web（代码枚举 <code>realtime</code>）</td></tr>
+          <tr><td>蓝色分支线 C</td><td><strong>闲聊/续写</strong>，不需要查库 → 跳过检索（代码枚举 <code>general</code>）</td></tr>
+          <tr><td>汇合</td><td>A、B 两路完成后都进入 <code>compact_history</code>；C 直达 <code>compact_history</code></td></tr>
+          <tr><td>左侧竖链 ⑨→⑩→⑪⑫</td><td>路由选 A 后<strong>顺序执行</strong>：Hybrid 检索 → Grader → Rerank+图扩展</td></tr>
+          <tr><td>右侧 Web 节点</td><td><strong>上方</strong>「B 直接 Web」= 路由选 B；<strong>下方</strong>「⑩ 无证据兜底」= 走了 A 后 Grader 仍无证据</td></tr>
+          <tr><td>橙色虚线</td><td>⑩ Grader「无证据」→ 兜底 Web（<strong>非</strong>路由阶段，<strong>非</strong>先检索再 Web 的默认顺序）</td></tr>
+          <tr><td>PG 侧节点靠左</td><td>PostgreSQL 读写节点固定在画布最左侧，避免「写入 PG」等边标签被主链节点遮挡</td></tr>
+          <tr><td>侧节点</td><td>Skill、PG、检索、LLM 等；通过左右连线接入主链，避免双线交叉</td></tr>
+          <tr><td>橙色粗框节点</td><td><code>route_question</code> 决策点：三选一，互斥分支</td></tr>
+        </tbody>
+      </table>
+
+      <h3>路由决策图（⑧ 三分支，一目了然）</h3>
+      <p><strong>不是</strong>「先检索，检索不到再 Web」。路由阶段是<strong>三选一</strong>；只有走了检索分支后，Grader 仍无证据时才会在<strong>后续步骤 ⑩</strong> 再兜底 Web。</p>
+      <div class="vue-flow-panel vue-flow-panel--md">
+        <div id="flow-route-root"></div>
+      </div>
+      <table>
+        <thead><tr><th>代码枚举</th><th>中文含义</th><th>典型问题</th><th>走哪条路</th></tr></thead>
+        <tbody>
+          <tr><td><code>project</code></td><td>私有领域 / 自己库</td><td>「张三的师父是谁？」「第三章讲了什么？」</td><td><strong>A → 检索</strong></td></tr>
+          <tr><td><code>realtime</code></td><td>时效 / 库外信息</td><td>「今天有什么新闻？」「现在几点？」</td><td><strong>B → Web</strong>（不先检索）</td></tr>
+          <tr><td><code>general</code></td><td>一般对话 / 创作</td><td>「帮我续写一段打斗」「把语气改轻松点」</td><td><strong>C → 跳过检索</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h3>分层职责（静态视角）</h3>
+      <table>
+        <thead><tr><th>层</th><th>组件</th><th>职责</th></tr></thead>
+        <tbody>
+          <tr><td>FastAPI 层</td><td>Chat API、ConfigResolver</td><td>接入请求；<strong>先</strong>解析配置，<strong>再</strong>启动 LangGraph</td></tr>
+          <tr><td>LangGraph 层</td><td>load_skill → load_history → route → … → save</td><td>按节点链编排单次对话状态机</td></tr>
+          <tr><td>检索流水线</td><td>Hybrid、Grader、Rerank、Graph Expand、Web</td><td>仅当路由选 <strong>A 查自己库</strong> 时进入；Web 兜底在 Grader 内</td></tr>
+          <tr><td>LLM 层</td><td>Provider Registry</td><td>统一调用各厂商模型 API</td></tr>
+          <tr><td>存储层</td><td>PostgreSQL、Neo4j</td><td>PG 记会话与原文；Neo4j 供检索与图扩展</td></tr>
+        </tbody>
+      </table>
+
+      <h3>完整请求流程说明</h3>
+      <p>以下步骤编号与 Vue Flow 连线标签<strong>完全一致</strong>（①–⑲）。</p>
+
+      <blockquote>
+        <strong>④ 与 ⑤ 不是读两次 Skill。</strong>LangGraph 按节点顺序执行：④ 在 <code>load_skill</code> 节点内<strong>唯一一次</strong>访问 Skill Registry；⑤ 仅表示该节点执行完后，沿边进入下一个节点 <code>load_history</code>，不再访问 Skill。
+      </blockquote>
+
+      <h4>先 Skill 后历史？没有 Skill 也读历史吗？</h4>
+      <p><strong>是。</strong>当前 LangGraph 主链为<strong>固定顺序、无条件分支</strong>：</p>
+      <pre><code>load_skill → load_history → route_question → …</code></pre>
+      <table>
+        <thead><tr><th>问题</th><th>结论</th></tr></thead>
+        <tbody>
+          <tr><td>先做什么？</td><td>先执行 <code>load_skill</code>（匹配并注入 Skill prompt），再执行 <code>load_history</code>（读 PG 会话历史）</td></tr>
+          <tr><td>没匹配到 Skill 还读历史吗？</td><td><strong>仍然读。</strong>两节点之间没有「有 Skill 才继续」的条件边；<code>load_skill</code> 结束后<strong>总是</strong>进入 <code>load_history</code></td></tr>
+          <tr><td>为什么？</td><td>Skill 决定「怎么答」（角色/策略）；历史决定「之前说了什么」（多轮上下文）。二者独立，聊天都需要历史</td></tr>
+          <tr><td>没匹配到 Skill 怎么办？</td><td><code>load_skill</code> 内走兜底：使用配置中的<strong>默认 Skill</strong>（如 <code>general</code>），或仅保留基础 system prompt，<strong>不阻断</strong>后续流程</td></tr>
+        </tbody>
+      </table>
+
+      <h4>阶段 A：接入与 LangGraph 初始化（①–⑦）</h4>
+      <table>
+        <thead><tr><th>步骤</th><th>发生位置</th><th>做什么</th><th>读写</th></tr></thead>
+        <tbody>
+          <tr><td>①</td><td>Client → Chat API</td><td>用户发送问题；Chat API 校验参数，绑定 <code>conversation_id</code>、<code>thread_id</code></td><td>—</td></tr>
+          <tr><td>②</td><td>Chat API → ConfigResolver</td><td>读取 <code>profile</code>，推导检索阈值、<code>retention_days</code>、模型配置</td><td>读配置</td></tr>
+          <tr><td>③</td><td>ConfigResolver → LangGraph</td><td>将 <code>RuntimeConfig</code> 注入 state，启动 StateGraph（<strong>配置先于图执行</strong>）</td><td>—</td></tr>
+          <tr><td>④</td><td><strong>节点</strong> <code>load_skill</code> 内</td><td>调用 Skill Registry：匹配 Skill 并注入 system prompt（<strong>全程仅此一次读 skills/</strong>）</td><td>读 <code>skills/</code></td></tr>
+          <tr><td>⑤</td><td><strong>节点切换</strong> → <code>load_history</code></td><td><code>load_skill</code> 已完成，进入历史加载节点（<strong>不再次读 Skill</strong>）</td><td>—</td></tr>
+          <tr><td>⑥</td><td><strong>节点</strong> <code>load_history</code> 内</td><td>读取该会话近期消息；超期归档，必要时读 <code>summary</code></td><td>读 PG</td></tr>
+          <tr><td>⑦</td><td><strong>节点切换</strong> → <code>route_question</code></td><td>历史写入 state，进入路由节点</td><td>—</td></tr>
+        </tbody>
+      </table>
+
+      <h4>阶段 B：路由与检索（⑧–⑬，Phase 2+）</h4>
+      <blockquote>
+        <strong>⑧ 路由 ≠ 检索失败再 Web。</strong>⑧ 是<strong>三选一</strong>：A 检索 / B 直接 Web / C 跳过。仅当走了 A 且后续 Grader（⑩）判定「库内无证据」时，才在检索链内部兜底 Web。
+      </blockquote>
+      <table>
+        <thead><tr><th>步骤</th><th>发生位置</th><th>做什么</th><th>读写</th></tr></thead>
+        <tbody>
+          <tr><td>⑧A</td><td><code>route_question</code> → 检索</td><td>判定为「查自己库」→ 进入 Hybrid 检索链</td><td>—</td></tr>
+          <tr><td>⑧B</td><td><code>route_question</code> → Web</td><td>判定为「时效/库外」→ <strong>直接</strong> Web，不先检索</td><td>外部 API</td></tr>
+          <tr><td>⑧C</td><td><code>route_question</code> → compact</td><td>判定为「闲聊/续写」→ 跳过检索与 Web</td><td>—</td></tr>
+          <tr><td>⑨</td><td>检索链内</td><td>Neo4j 向量 + PG <code>tsvector</code> 并行召回，RRF 融合</td><td>读 Neo4j + PG</td></tr>
+          <tr><td>⑩</td><td>检索链内 Grader</td><td>评估相关性；不相关→rewrite 重试；<strong>无证据→兜底 Web</strong></td><td>调 Provider</td></tr>
+          <tr><td>⑪–⑫</td><td>检索链内</td><td>Rerank 精排 → Graph Expand 图扩展</td><td>读 Neo4j</td></tr>
+          <tr><td>⑬</td><td>→ <code>compact_history</code></td><td>A/B/C 三路汇合：检索结果、Web 结果或空上下文写入 state</td><td>—</td></tr>
+        </tbody>
+      </table>
+
+      <h4>阶段 C：生成、流式输出与持久化（⑭–⑲）</h4>
+      <table>
+        <thead><tr><th>步骤</th><th>组件</th><th>做什么</th><th>读写</th></tr></thead>
+        <tbody>
+          <tr><td>⑭</td><td>compact_history</td><td>历史 token 超阈值则压缩，可能更新 <code>summary</code></td><td>可能写 PG</td></tr>
+          <tr><td>⑮</td><td>generate</td><td>拼装 prompt（Skill + 历史 + 检索证据）</td><td>—</td></tr>
+          <tr><td>⑯</td><td>Provider Registry</td><td>流式调用 LLM</td><td>调外部 LLM API</td></tr>
+          <tr><td>⑰</td><td>MCP Client（预留）</td><td>可选工具调用；第一版默认关闭</td><td>读/写外部</td></tr>
+          <tr><td>—</td><td>hallucination_check</td><td>Phase 3：未 grounded 则回到 generate</td><td>调 Provider</td></tr>
+          <tr><td>⑱</td><td>stream_sse_response</td><td>SSE 推送 token 给 Client</td><td>—</td></tr>
+          <tr><td>⑲</td><td>save_messages</td><td>持久化本轮消息到 PG</td><td>写 PG</td></tr>
+        </tbody>
+      </table>
+
+      <h4>典型路径对照（与交互图分支一致）</h4>
+      <table>
+        <thead><tr><th>场景</th><th>路径</th><th>示例</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Phase 1 纯对话</strong></td>
+            <td>①→…→⑦→⑧C→⑭→⑮→⑯→⑱→⑲</td>
+            <td>「帮我续写打斗」— C 跳过检索，Skill + 历史直接生成</td>
+          </tr>
+          <tr>
+            <td><strong>Phase 2 查设定</strong></td>
+            <td>①→…→⑦→⑧A→⑨→⑩→⑪→⑫→⑬→⑭→⑮→⑯→⑱→⑲</td>
+            <td>「张三的师父是谁？」— A 走检索后带引用回答</td>
+          </tr>
+          <tr>
+            <td><strong>时效问题</strong></td>
+            <td>①→…→⑦→⑧B→⑬→…→⑲</td>
+            <td>「今天有什么热点」— B 直接 Web，不先检索</td>
+          </tr>
+          <tr>
+            <td><strong>检索后无证据</strong></td>
+            <td>①→…→⑧A→⑨→⑩ 无证据→Web→⑬→…→⑲</td>
+            <td>走了 A 但库内查不到时，⑩ 兜底 Web（非 ⑧ 路由）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <blockquote>
+        <strong>数据流向口诀</strong>：ConfigResolver 先于 LangGraph 节点；load_history 在 route 之前读 PG；检索仅在 <code>⑧ project</code> 分支；SSE 经 stream_sse 回传 Client；save_messages 最后写 PG。
+      </blockquote>
+    </section>
+
+    <!-- 第 4 章 -->
+    <section id="sec-04">
+      <h2>4. 存储架构</h2>
+      <h3>4.1 职责分离</h3>
+      <table>
+        <thead><tr><th>库</th><th>角色</th><th>存储内容</th><th>不存储</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>PostgreSQL</td><td><strong>Source of Truth</strong></td>
+            <td>users, projects, conversations, messages, documents, ingestion_jobs</td>
+            <td>图遍历、向量近邻</td>
+          </tr>
+          <tr>
+            <td>Neo4j</td><td><strong>派生知识索引（可重建）</strong></td>
+            <td>Chunk, Entity, 结构边, 知识边, vector index</td>
+            <td>通用 CRUD、会话历史</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>4.2 PostgreSQL 核心表（草案）</h3>
+      <pre><code>users            — 用户
+projects         — 项目（小说/视频等），metadata JSONB 存设定/分镜
+conversations    — 会话，含 summary 压缩摘要
+messages         — 消息（role, content, created_at）
+documents        — 原始文档（source, version, project_id）
+ingestion_jobs   — 摄取任务状态
+app_config       — 运行时配置快照（可选）</code></pre>
+      <ul>
+        <li>全文检索：<code>documents</code> / <code>messages</code> 上 <code>tsvector</code> 索引</li>
+        <li>灵活字段：<code>projects.metadata JSONB</code>（设定、分镜等跨业务扩展）</li>
+      </ul>
+
+      <h3>4.3 Neo4j 图谱模型（草案）</h3>
+      <pre><code class="language-cypher">(:Project {id})-[:HAS_DOCUMENT]->(:Document {id, title})
+(:Document)-[:HAS_CHUNK]->(:Chunk {id, text, embedding, index})
+(:Chunk)-[:NEXT]->(:Chunk)
+(:Chunk)-[:MENTIONS]->(:Entity {name, type})
+(:Entity)-[:RELATED_TO]->(:Entity)
+(:Entity)-[:APPEARS_IN]->(:Chapter {number})</code></pre>
+
+      <h3>4.4 单向同步（非双向主从）</h3>
+      <p><strong>「双向主从」</strong>指 PG 与 Neo4j 互相当主库、两边都写、互相同步——复杂且易不一致，<strong>本项目明确不做</strong>。</p>
+      <div class="vue-flow-panel vue-flow-panel--sm">
+        <div id="flow-sync-root"></div>
+      </div>
+      <table>
+        <thead><tr><th>原则</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>PG 是唯一真相源</td><td>原始文档、业务数据只以 PG 为准</td></tr>
+          <tr><td>Neo4j 是派生索引</td><td>从 PG 构建，可全量重建</td></tr>
+          <tr><td>同步方向</td><td><strong>PG → Neo4j（单向）</strong></td></tr>
+          <tr><td>第一版</td><td>chat 阶段可暂不跑同步</td></tr>
+        </tbody>
+      </table>
+      <p>Neo4j 挂了？从 PG 重跑 Ingestion 重建即可。</p>
+
+      <h3>4.5 数据存入与切割关系</h3>
+      <blockquote>
+        <strong>不是</strong>「原始数据放 PG、只有关系放 Neo4j」，而是：<br>
+        <strong>PG 存原始与业务真相；Neo4j 存切割后的可检索知识图谱（含 chunk 文本与向量）。</strong>
+      </blockquote>
+      <table>
+        <thead><tr><th>类型</th><th>存储位置</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>结构关系（NEXT、HAS_CHUNK）</td><td>Neo4j 边</td><td>文档顺序</td></tr>
+          <tr><td>向量相似（语义近邻）</td><td>Neo4j vector index</td><td>查询时 kNN，不预存 SIMILAR_TO 边</td></tr>
+          <tr><td>知识关系（MENTIONS、RELATED_TO）</td><td>Neo4j 边</td><td>GraphRAG 多跳推理</td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.6 Neo4j「节点」与「边」是什么？</h3>
+      <p>Neo4j 是<strong>图数据库</strong>。图由两类基本元素构成：</p>
+      <table>
+        <thead><tr><th>概念</th><th>英文</th><th>含义</th><th>类比</th></tr></thead>
+        <tbody>
+          <tr><td><strong>节点</strong></td><td>Node</td><td>一个「东西」，带标签和属性</td><td>地图上的「地点」</td></tr>
+          <tr><td><strong>边</strong></td><td>Relationship / Edge</td><td>两个节点之间的<strong>有向连接</strong>，带类型和属性</td><td>地图上的「箭头/道路」</td></tr>
+        </tbody>
+      </table>
+      <p>写法 <code>(:A)-[:REL_TYPE]->(:B)</code> 表示：从节点 A 沿类型为 <code>REL_TYPE</code> 的边，指向节点 B。</p>
+
+      <h4>小说场景举例</h4>
+      <pre><code class="language-cypher">// 节点：人物
+(:Entity {name: "张三", type: "主角"})
+// 节点：片段
+(:Chunk {text: "张三拜李四为师...", index: 12})
+// 边：MENTIONS — Chunk 提到了 Entity
+(:Chunk)-[:MENTIONS]->(:Entity)
+// 边：RELATED_TO — 人物之间的关系
+(:Entity {name:"张三"})-[:RELATED_TO {relation:"师徒"}]->(:Entity {name:"李四"})
+// 边：NEXT — 相邻章节片段的顺序
+(:Chunk {index:12})-[:NEXT]->(:Chunk {index:13})</code></pre>
+
+      <h4>本项目中的三类「边」</h4>
+      <table>
+        <thead><tr><th>边类型</th><th>连接</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>HAS_DOCUMENT</code> / <code>HAS_CHUNK</code></td><td>项目→文档→片段</td><td>结构归属：这段文字属于哪本书哪一章</td></tr>
+          <tr><td><code>NEXT</code></td><td>Chunk→Chunk</td><td>阅读顺序：检索时可向前后扩展上下文</td></tr>
+          <tr><td><code>MENTIONS</code> / <code>RELATED_TO</code> / <code>APPEARS_IN</code></td><td>Chunk↔Entity↔Chapter</td><td>知识关系：谁出场、谁和谁有关、在哪一章</td></tr>
+        </tbody>
+      </table>
+
+      <blockquote>
+        <strong>边 ≠ 向量相似度。</strong>「张三和李四是师徒」存为 <code>RELATED_TO</code> 边（显式关系）；「这两段文字意思相近」靠 vector index 在查询时算相似度，<strong>一般不存 SIMILAR_TO 边</strong>，避免图爆炸。
+      </blockquote>
+    </section>
+
+    <!-- 第 5 章 -->
+    <section id="sec-05">
+      <h2>5. Provider Registry</h2>
+      <p>设计目标：<strong>不硬编码厂商列表</strong>，通过配置切换任意模型。</p>
+      <h3>适配器分层</h3>
+      <table>
+        <thead><tr><th>适配器类型</th><th>覆盖厂商示例</th><th>协议</th></tr></thead>
+        <tbody>
+          <tr><td><code>OpenAICompatibleProvider</code></td><td>智谱 GLM、DeepSeek、Kimi、本地 vLLM</td><td>OpenAI Chat Completions 兼容</td></tr>
+          <tr><td><code>AnthropicCompatibleProvider</code></td><td>Claude 系列</td><td>Anthropic Messages API</td></tr>
+          <tr><td><code>CustomProvider</code></td><td>不满足上述协议的厂商</td><td>独立 SDK 封装，注册到 Registry</td></tr>
+        </tbody>
+      </table>
+      <h3>配置示例</h3>
+      <pre><code class="language-yaml">model:
+  provider: zhipu          # Registry 中的 provider id，非硬编码枚举
+  model: glm-4-flash
+  api_base: https://open.bigmodel.cn/api/paas/v4/
+  # api_key 从 .env 读取</code></pre>
+      <p>切换模型只改配置，不改代码：</p>
+      <pre><code class="language-yaml">model:
+  provider: deepseek
+  model: deepseek-chat
+  api_base: https://api.deepseek.com/v1</code></pre>
+      <h3>Provider Registry 伪代码</h3>
+      <pre><code class="language-python">class ProviderRegistry:
+    def register(self, provider_id: str, factory: ProviderFactory) -> None: ...
+    def get(self, provider_id: str) -> BaseLLMProvider: ...
+
+def build_llm(config: ModelConfig) -> BaseChatModel:
+    adapter = registry.get(config.provider)
+    return adapter.create(model=config.model, api_base=config.api_base, ...)</code></pre>
+      <p>新增厂商 = 新增一个 Adapter 文件 + <code>registry.register(...)</code>，不动 LangGraph 主流程。</p>
+    </section>
+
+    <!-- 第 6 章 -->
+    <section id="sec-06">
+      <h2>6. RAG 与 BM25</h2>
+      <h3>6.1 「不自写底层检索」的含义</h3>
+      <table>
+        <thead><tr><th>自己做</th><th>用 LangChain/LangGraph</th></tr></thead>
+        <tbody>
+          <tr><td>手写 HNSW 向量算法</td><td><code>Neo4jVector</code> / LangChain Retriever</td></tr>
+          <tr><td>手写 BM25</td><td>PG <code>tsvector</code> + LangChain 封装</td></tr>
+          <tr><td>手写 RRF 融合</td><td>LangChain EnsembleRetriever / 社区组件</td></tr>
+          <tr><td>手写 Agent 状态机</td><td><strong>LangGraph</strong> 编排检索→评分→生成流程</td></tr>
+        </tbody>
+      </table>
+      <pre><code>LangChain = 检索组件（Retriever、Document Loader、Reranker）
+LangGraph = 编排（何时检索、何时 Web、何时拒答）
+自写     = 仅业务胶水层，不造向量引擎</code></pre>
+      <p>仍需自己做的（业务编排层）：Ingestion 流水线、Adaptive Router/Grader Prompt 与阈值、双库写入协调、SSE 与会话管理。</p>
+
+      <h3>6.2 BM25 说明</h3>
+      <p>BM25 是一种<strong>关键词相关性排序算法</strong>（基于 TF、IDF、文档长度归一化），擅长精确词匹配，不擅长语义改写。</p>
+      <table>
+        <thead><tr><th></th><th>BM25</th><th>Meilisearch</th></tr></thead>
+        <tbody>
+          <tr><td><strong>本质</strong></td><td>一种排序算法/公式</td><td>完整搜索引擎产品</td></tr>
+          <tr><td><strong>关系</strong></td><td>关键词匹配这一路</td><td>含索引、分词、纠错、API、UI</td></tr>
+          <tr><td><strong>本项目</strong></td><td>PG <code>tsvector</code> / Neo4j 全文索引</td><td><strong>第一版不引入</strong></td></tr>
+        </tbody>
+      </table>
+      <blockquote><strong>BM25 不是 Meilisearch。</strong> Hybrid 检索 = 向量 + 关键词（BM25 路）→ RRF → Rerank。</blockquote>
+      <h4>查询类型对比举例</h4>
+      <table>
+        <thead><tr><th>查询</th><th>BM25（关键词）</th><th>向量（语义）</th></tr></thead>
+        <tbody>
+          <tr><td>张三 九幽魔帝</td><td>强</td><td>可</td></tr>
+          <tr><td>主角是谁</td><td>弱</td><td>强</td></tr>
+          <tr><td>第三章</td><td>强</td><td>一般</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 第 7 章 -->
+    <section id="sec-07">
+      <h2>7. 检索准确性工程</h2>
+      <blockquote>准确性不靠数据库选型，靠检索流水线 + 纠错回路 + 评测。</blockquote>
+      <h3>生产默认栈</h3>
+      <pre><code>Hybrid Retrieval（Neo4j vector + PG 全文）
+  → Reciprocal Rank Fusion（RRF）
+  → Cross-Encoder Rerank（Top50 → Top5）
+  → Neo4j 图扩展（2 跳）
+  → LLM 生成（带引用）</code></pre>
+      <div class="vue-flow-panel vue-flow-panel--tall">
+        <div id="flow-retrieval-root"></div>
+      </div>
+      <h3>路由策略（⑧ 三选一，非「先检索再 Web」）</h3>
+      <table>
+        <thead><tr><th>路由分支</th><th>代码枚举</th><th>路径</th></tr></thead>
+        <tbody>
+          <tr><td>A 查自己库</td><td><code>project</code></td><td>进入 Hybrid 检索链；仅 Grader 无证据时才兜底 Web</td></tr>
+          <tr><td>B 问实时/库外</td><td><code>realtime</code></td><td><strong>直接 Web</strong>，不先检索</td></tr>
+          <tr><td>C 闲聊/续写</td><td><code>general</code></td><td>跳过检索与 Web，直达生成</td></tr>
+          <tr><td>检索链内兜底</td><td>—</td><td>走了 A 且重试耗尽仍无证据 → Web 或拒答（<code>strict</code> profile）</td></tr>
+        </tbody>
+      </table>
+      <h3>准确性 ROI 排序</h3>
+      <ol>
+        <li>Ingestion 质量（切分、元数据、版本）</li>
+        <li>Hybrid + Rerank</li>
+        <li>Query Rewrite</li>
+        <li>Neo4j 图扩展</li>
+        <li>CRAG / Self-RAG 纠错</li>
+        <li>Web 条件兜底</li>
+        <li>生成护栏 + RAGAS 评测</li>
+      </ol>
+    </section>
+
+    <!-- 第 8 章 -->
+    <section id="sec-08">
+      <h2>8. 配置体系</h2>
+      <p><strong>Profile 选档</strong>：运维只写 <code>profile: prod</code>，系统自动推导其余参数（Convention over Configuration）。</p>
+      <h3>三层配置</h3>
+      <table>
+        <thead><tr><th>层级</th><th>内容</th><th>维护者</th></tr></thead>
+        <tbody>
+          <tr><td>L1 代码常量</td><td><code>MAX_RETRIES_HARD_CAP=5</code>, <code>GRADER_THRESHOLD=0.7</code></td><td>开发</td></tr>
+          <tr><td>L2 Profile</td><td><code>dev</code> / <code>prod</code> / <code>strict</code> 套餐</td><td>运维选档</td></tr>
+          <tr><td>L3 高级覆盖</td><td><code>config.override.yaml</code>（默认不存在）</td><td>高级运维</td></tr>
+        </tbody>
+      </table>
+      <h3>运维配置示例</h3>
+      <pre><code class="language-yaml">profile: prod
+model:
+  provider: zhipu
+  model: glm-4
+database:
+  business: postgresql
+  knowledge: neo4j
+history:
+  retention_days: 90
+skills:
+  auto_discover: true
+  directory: skills
+mcp:
+  enabled: false</code></pre>
+      <h3>Profile 映射表</h3>
+      <table>
+        <thead><tr><th>参数</th><th>dev</th><th>prod</th><th>strict</th></tr></thead>
+        <tbody>
+          <tr><td>max_retries</td><td>2</td><td>2</td><td>3</td></tr>
+          <tr><td>retrieve_top_k</td><td>30</td><td>50</td><td>50</td></tr>
+          <tr><td>rerank_top_k</td><td>5</td><td>5</td><td>3</td></tr>
+          <tr><td>graph_expand_hops</td><td>2</td><td>2</td><td>2</td></tr>
+          <tr><td>web_search</td><td>conditional</td><td>conditional</td><td>conditional</td></tr>
+          <tr><td>refuse_when_no_evidence</td><td>false</td><td>false</td><td>true</td></tr>
+        </tbody>
+      </table>
+      <h3>ConfigResolver 伪代码</h3>
+      <pre><code class="language-python">def resolve(yaml_config: dict) -> RuntimeConfig:
+    profile = yaml_config.get("profile", "dev")
+    base = PROFILE_PRESETS[profile]          # L2
+    base = apply_env_secrets(base)           # .env
+    base = merge_override(base, L3_FILE)     # 可选
+    base = clamp(base, L1_HARD_CAPS)         # L1 安全边界
+    return RuntimeConfig(**base)</code></pre>
+    </section>
+
+    <!-- 第 9 章 -->
+    <section id="sec-09">
+      <h2>9. LangGraph 流程</h2>
+      <div class="vue-flow-panel vue-flow-panel--md">
+        <div id="flow-langgraph-root"></div>
+      </div>
+      <h3>节点职责</h3>
+      <table>
+        <thead><tr><th>节点</th><th>职责</th></tr></thead>
+        <tbody>
+          <tr><td><code>load_skill</code></td><td>从 Skill Registry 加载当前领域 Skill；未匹配时使用默认 Skill，<strong>不阻断</strong>后续节点</td></tr>
+          <tr><td><code>load_history</code></td><td>从 PG 加载会话历史（<strong>无论是否匹配到 Skill 均执行</strong>，受 retention 策略约束）</td></tr>
+          <tr><td><code>route_question</code></td><td>Adaptive 路由：<strong>三选一</strong> — A <code>project</code> 检索 / B <code>realtime</code> 直接 Web / C <code>general</code> 跳过</td></tr>
+          <tr><td><code>retrieve_*</code></td><td>检索状态机（见第 7 章）</td></tr>
+          <tr><td><code>compact_history</code></td><td>历史超 token 阈值时压缩摘要</td></tr>
+          <tr><td><code>stream_sse_response</code></td><td>SSE 流式输出</td></tr>
+          <tr><td><code>save_messages</code></td><td>持久化 user/assistant 消息到 PG</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 第 10 章 -->
+    <section id="sec-10">
+      <h2>10. Agent Skills</h2>
+      <p>Skills 实现可插拔专业能力：资深玄幻小说作家、资深导演、分镜师等，通过目录扫描自动发现。</p>
+      <h3>目录结构</h3>
+      <pre><code>skills/
+├── novel-writing/
+│   ├── SKILL.md          # Agent Skills 标准描述
+│   ├── prompts/
+│   └── tools.yaml        # 可选工具声明
+├── director/
+│   └── SKILL.md
+└── storyboard/
+    └── SKILL.md</code></pre>
+      <h3>Skill Registry 伪代码</h3>
+      <pre><code class="language-python">def discover_skills(directory: str) -> list[Skill]:
+    # 扫描 skills/*/SKILL.md
+    # 解析 frontmatter：name, description, triggers
+    return skills
+
+def match_skill(query: str, skills: list[Skill]) -> Skill:
+    # router 节点：按 triggers / LLM 分类选择 Skill
+    return best_match</code></pre>
+      <p>第一版示例：<code>skills/novel-writing/SKILL.md</code> — 注入 system prompt、检索过滤条件（<code>project_id</code>）、输出格式约束。</p>
+    </section>
+
+    <!-- 第 11 章 -->
+    <section id="sec-11">
+      <h2>11. MCP（Model Context Protocol）</h2>
+      <p>MCP 是开放标准协议，用于 Agent 以统一方式调用外部工具和数据源。第一版：<code>mcp.enabled: false</code>，仅预留配置与 Client 接口。</p>
+      <h3>定位与分工</h3>
+      <pre><code>RAG/检索  = 「我库里已经有的知识」 → 被动召回（读）
+MCP       = 「我现在要去外部做事」 → 主动调用（读/写/API）
+Skills    = 「我以什么角色/策略做事」 → 行为约束
+LangGraph = 「按什么流程编排」 → 状态机</code></pre>
+      <table>
+        <thead><tr><th>模块</th><th>职责</th><th>比喻</th></tr></thead>
+        <tbody>
+          <tr><td><strong>RAG</strong></td><td>从已有知识库召回</td><td>图书馆查资料</td></tr>
+          <tr><td><strong>MCP</strong></td><td>调用外部工具/API</td><td>打电话/发邮件/操作软件</td></tr>
+          <tr><td><strong>Skills</strong></td><td>领域角色与策略</td><td>资深作家的人设</td></tr>
+          <tr><td><strong>Provider</strong></td><td>换 LLM 模型</td><td>换大脑</td></tr>
+        </tbody>
+      </table>
+      <div class="vue-flow-panel vue-flow-panel--md">
+        <div id="flow-mcp-root"></div>
+      </div>
+      <h3>小说创作域 MCP 场景</h3>
+      <table>
+        <thead><tr><th>MCP 应用</th><th>做什么</th><th>典型 MCP Server</th></tr></thead>
+        <tbody>
+          <tr><td>读写稿件文件</td><td>读取/保存 .md、.docx 章节</td><td>filesystem</td></tr>
+          <tr><td>版本管理</td><td>查看修改历史、对比章节差异</td><td>git MCP</td></tr>
+          <tr><td>设定表导出</td><td>人物/世界观导出为表格</td><td>自定义 MCP + PG 查询</td></tr>
+          <tr><td>发布到平台</td><td>调用开放 API（若有）</td><td>第三方 API MCP</td></tr>
+          <tr><td>插图生成</td><td>根据场景描述调绘图 API</td><td>image generation MCP</td></tr>
+        </tbody>
+      </table>
+      <h3>短视频 / 导演 / 分镜域 MCP 场景</h3>
+      <table>
+        <thead><tr><th>MCP 应用</th><th>做什么</th><th>典型 MCP Server</th></tr></thead>
+        <tbody>
+          <tr><td>素材库浏览</td><td>列出视频/图片/音频素材</td><td>filesystem / 对象存储 MCP</td></tr>
+          <tr><td>字幕/转写</td><td>调用 ASR 生成字幕</td><td>transcription MCP</td></tr>
+          <tr><td>分镜脚本导出</td><td>生成标准分镜表文件</td><td>filesystem + 模板 MCP</td></tr>
+          <tr><td>视频元数据</td><td>读取时长、分辨率、编码</td><td>ffprobe / media MCP</td></tr>
+          <tr><td>配音/TTS</td><td>根据台词生成旁白</td><td>TTS API MCP</td></tr>
+          <tr><td>封面/缩略图</td><td>自动生成视频封面</td><td>image MCP</td></tr>
+        </tbody>
+      </table>
+      <h3>产品设计原则</h3>
+      <ol>
+        <li>内部知识 → RAG（PG + Neo4j）</li>
+        <li>外部动作/实时数据 → MCP</li>
+        <li>领域策略 → Skills</li>
+        <li>第一版 chat 阶段：MCP 全部预留，先不做</li>
+      </ol>
+      <h3>集成方式（预留）</h3>
+      <ul>
+        <li>库：<code>langchain-mcp-adapters</code>（<code>MultiServerMCPClient</code>）</li>
+        <li>传输：<code>stdio</code>（本地）/ <code>streamable_http</code>（远程）</li>
+        <li>MCP 工具 → LangChain Tool → LangGraph <code>ToolNode</code></li>
+      </ul>
+      <pre><code class="language-yaml">mcp:
+  enabled: false
+  servers: []   # 后续按需添加标准 MCP Server</code></pre>
+    </section>
+
+    <!-- 第 12 章 -->
+    <section id="sec-12">
+      <h2>12. Hooks 评估</h2>
+      <blockquote>
+        对你当前阶段（学习 + MVP），<strong>平台级 Hooks 不是必需品，建议不纳入第一版</strong>。<br>
+        运行时扩展优先用 LangGraph 节点 + MCP + Skills；开发期自动化用 Cursor IDE Hooks。
+      </blockquote>
+      <h3>两种 Hooks 不要混淆</h3>
+      <table>
+        <thead><tr><th>类型</th><th>运行环境</th><th>作用对象</th><th>适合场景</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cursor IDE Hooks</strong></td><td>Cursor 编辑器</td><td>开发者</td><td>开发期自动化、审计、格式化</td></tr>
+          <tr><td><strong>lanmo 平台 Hooks</strong></td><td>lanmo 服务端</td><td>终端用户</td><td>运行时插件、合规审计、多租户定制</td></tr>
+        </tbody>
+      </table>
+      <h3>已有替代机制</h3>
+      <table>
+        <thead><tr><th>需求</th><th>已有替代</th><th>还需要 Hooks？</th></tr></thead>
+        <tbody>
+          <tr><td>加新能力/工具</td><td><strong>MCP</strong></td><td>否</td></tr>
+          <tr><td>换领域策略</td><td><strong>Agent Skills</strong></td><td>否</td></tr>
+          <tr><td>改流水线逻辑</td><td><strong>LangGraph 节点/边</strong></td><td>否</td></tr>
+          <tr><td>MCP 调用拦截</td><td><strong>MCP Interceptors</strong></td><td>否</td></tr>
+          <tr><td>API 层中间件</td><td><strong>FastAPI Middleware</strong></td><td>否</td></tr>
+          <tr><td>开发期自动化</td><td><strong>Cursor IDE Hooks</strong></td><td>用 IDE 的</td></tr>
+        </tbody>
+      </table>
+      <h3>决策</h3>
+      <table>
+        <thead><tr><th>决策</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>平台 Hooks</td><td>第一版<strong>不实现</strong>，架构图标注「未来可选扩展点」</td></tr>
+          <tr><td>IDE Hooks</td><td>文档说明用途，<strong>不写入项目</strong>（不加 IDE 配置）</td></tr>
+          <tr><td>真正预留</td><td>LangGraph 节点分层 + MCP + Skills 已足够扩展</td></tr>
+        </tbody>
+      </table>
+      <p>满足以下<strong>任意 2 条</strong>时再考虑平台 Hooks：第三方插件生态、多租户自定义审计、LangGraph 横切关注点膨胀、强合规拦截要求。</p>
+    </section>
+
+    <!-- 第 13 章 -->
+    <section id="sec-13">
+      <h2>13. Ingestion Lite 流水线</h2>
+      <p>第一版不实现；未来接入既有喂养系统后执行 PG → Neo4j 单向同步。</p>
+      <div class="vue-flow-panel vue-flow-panel--sm">
+        <div id="flow-ingestion-root"></div>
+      </div>
+      <ul>
+        <li><strong>第一版范围</strong>：导入 → 切分 → embedding → 写 PG + Neo4j</li>
+        <li><strong>Phase 3 增强</strong>：实体抽取、关系边自动构建、图谱重建任务</li>
+      </ul>
+    </section>
+
+    <!-- 第 14 章 -->
+    <section id="sec-14">
+      <h2>14. 对话历史保留策略</h2>
+      <p>通过配置文件设置对话历史保留时间，支持 Context Engineering 分层策略。</p>
+      <table>
+        <thead><tr><th>策略</th><th>配置</th><th>行为</th></tr></thead>
+        <tbody>
+          <tr><td>原始消息保留</td><td><code>history.retention_days: 90</code></td><td>超期消息归档或删除</td></tr>
+          <tr><td>上下文压缩</td><td>Profile 推导</td><td>超 token 阈值触发 <code>compact_history</code></td></tr>
+          <tr><td>压缩摘要</td><td>存 PG <code>conversations.summary</code></td><td>保留长期上下文，减少 token</td></tr>
+        </tbody>
+      </table>
+      <p>推荐分层：近期 N 轮保留原文；较早对话压缩为摘要；关键设定/人物/世界观永久保存；工具返回大块内容短期保留（如 7 天）。</p>
+    </section>
+
+    <!-- 第 15 章 -->
+    <section id="sec-15">
+      <h2>15. API 与数据格式</h2>
+      <p>第一版（当前范围）：<strong>仅 chat 问答接口</strong>。以下定义 HTTP 入参/出参与 LangGraph 节点间 state 字段，作为实现与联调契约。</p>
+
+      <h3>15.1 HTTP Chat API</h3>
+      <table>
+        <thead><tr><th>方法</th><th>路径</th><th>状态</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>GET</td><td><code>/api/v1/chat</code></td><td><strong>已有</strong></td><td>骨架接口，返回简单字符串</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/chat</code></td><td>目标</td><td>SSE 流式问答（演进现有 chat 模块）</td></tr>
+        </tbody>
+      </table>
+
+      <h4>POST 请求体 <code>ChatRequest</code></h4>
+      <table>
+        <thead><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>message</code></td><td>string</td><td>是</td><td>用户本轮输入</td></tr>
+          <tr><td><code>conversation_id</code></td><td>string (uuid)</td><td>否</td><td>续聊会话 id；省略则新建</td></tr>
+          <tr><td><code>skill_id</code></td><td>string</td><td>否</td><td>指定 Skill；省略则自动匹配</td></tr>
+          <tr><td><code>stream</code></td><td>boolean</td><td>否</td><td>默认 <code>true</code>，SSE 流式</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-json">{
+  "message": "张三的师父是谁？",
+  "conversation_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "skill_id": "novel-writing",
+  "stream": true
+}</code></pre>
+
+      <h4>SSE 事件流 <code>ChatStreamEvent</code></h4>
+      <table>
+        <thead><tr><th>event</th><th>data 结构</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>message_start</code></td><td><code>{ conversation_id, message_id }</code></td><td>开始生成</td></tr>
+          <tr><td><code>content_delta</code></td><td><code>{ delta: string }</code></td><td>增量文本</td></tr>
+          <tr><td><code>citation</code></td><td><code>{ chunk_id, source, excerpt }</code></td><td>引用片段（RAG 路径）</td></tr>
+          <tr><td><code>message_end</code></td><td><code>{ message_id, usage }</code></td><td>完成</td></tr>
+          <tr><td><code>error</code></td><td><code>{ code, message }</code></td><td>错误</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-json">event: content_delta
+data: {"delta":"张三的师父是"}
+
+event: citation
+data: {"chunk_id":"c-1024","source":"chapter-3.md","excerpt":"青云子传他剑法..."}
+
+event: message_end
+data: {"message_id":"m-9f2a","usage":{"prompt_tokens":820,"completion_tokens":96}}</code></pre>
+
+      <h3>15.2 LangGraph 全局 State <code>AgentState</code></h3>
+      <p>单次 POST 请求在 LangGraph 内流转的共享状态。各节点<strong>只读写声明字段</strong>，避免隐式副作用。</p>
+      <table>
+        <thead><tr><th>字段</th><th>类型</th><th>写入节点</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>question</code></td><td>string</td><td>入口</td><td>用户原始问题</td></tr>
+          <tr><td><code>conversation_id</code></td><td>string</td><td>入口</td><td>会话 id</td></tr>
+          <tr><td><code>skill</code></td><td>SkillContext</td><td>load_skill</td><td>匹配到的 Skill 与 system prompt</td></tr>
+          <tr><td><code>history</code></td><td>Message[]</td><td>load_history</td><td>PG 加载的近期消息</td></tr>
+          <tr><td><code>route</code></td><td>RouteDecision</td><td>route_question</td><td>project / realtime / general</td></tr>
+          <tr><td><code>retrieval</code></td><td>RetrievalContext</td><td>retrieve_*</td><td>检索/Web 证据与引用</td></tr>
+          <tr><td><code>prompt</code></td><td>string</td><td>compact_history, generate</td><td>拼装后的模型输入</td></tr>
+          <tr><td><code>answer</code></td><td>string</td><td>generate</td><td>最终助手回复</td></tr>
+        </tbody>
+      </table>
+      <pre><code class="language-json">{
+  "question": "张三的师父是谁？",
+  "conversation_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "skill": { "id": "novel-writing", "system_prompt": "你是资深玄幻小说作家..." },
+  "history": [
+    { "role": "user", "content": "介绍一下张三" },
+    { "role": "assistant", "content": "张三是青云门弟子..." }
+  ],
+  "route": { "domain": "project", "confidence": 0.91 },
+  "retrieval": {
+    "chunks": [{ "id": "c-1024", "text": "...", "score": 0.87 }],
+    "web_results": []
+  },
+  "prompt": "...",
+  "answer": ""
+}</code></pre>
+
+      <h3>15.3 关键节点入参 / 返回</h3>
+      <table>
+        <thead><tr><th>节点</th><th>入参（从 state 读取）</th><th>返回（写回 state）</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>route_question</code></td>
+            <td><code>{ question, history, skill }</code></td>
+            <td><code>RouteDecision</code></td>
+          </tr>
+          <tr>
+            <td><code>retrieve_hybrid</code></td>
+            <td><code>{ question, route }</code>（仅 domain=project）</td>
+            <td><code>RetrievalContext.chunks[]</code></td>
+          </tr>
+          <tr>
+            <td><code>grade_documents</code></td>
+            <td><code>{ question, chunks }</code></td>
+            <td><code>GradeResult</code>：relevant / irrelevant / no_evidence</td>
+          </tr>
+          <tr>
+            <td><code>web_search</code></td>
+            <td><code>{ question }</code>（route=realtime 或 grader 兜底）</td>
+            <td><code>RetrievalContext.web_results[]</code></td>
+          </tr>
+          <tr>
+            <td><code>generate</code></td>
+            <td><code>{ prompt, skill, retrieval, history }</code></td>
+            <td><code>{ answer, citations[] }</code></td>
+          </tr>
+          <tr>
+            <td><code>save_messages</code></td>
+            <td><code>{ conversation_id, question, answer }</code></td>
+            <td><code>{ message_ids[] }</code>（持久化到 PG）</td></tr>
+        </tbody>
+      </table>
+
+      <h4><code>RouteDecision</code> 示例</h4>
+      <pre><code class="language-json">{
+  "domain": "project",
+  "confidence": 0.91,
+  "reason": "问题涉及小说人物设定，应查私有库"
+}</code></pre>
+      <p><code>domain</code> 枚举：<code>project</code>（A 检索）、<code>realtime</code>（B 直接 Web）、<code>general</code>（C 跳过）。</p>
+
+      <h4><code>GradeResult</code> 示例</h4>
+      <pre><code class="language-json">{
+  "verdict": "relevant",
+  "scores": [{ "chunk_id": "c-1024", "relevance": 0.84 }],
+  "retry_count": 0
+}</code></pre>
+      <p><code>verdict</code> 枚举：<code>relevant</code> → Rerank；<code>irrelevant</code> → rewrite_query；<code>no_evidence</code> → web_search 兜底。</p>
+
+      <h4><code>RetrievalContext</code> 示例</h4>
+      <pre><code class="language-json">{
+  "chunks": [
+    {
+      "id": "c-1024",
+      "document_id": "doc-88",
+      "text": "青云子将剑法倾囊相授，张三正式拜师。",
+      "score": 0.87,
+      "source": "chapter-3.md"
+    }
+  ],
+  "web_results": [
+    {
+      "title": "今日科技热点",
+      "url": "https://example.com/news/1",
+      "snippet": "..."
+    }
+  ],
+  "graph_entities": [{ "name": "青云子", "type": "Character" }]
+}</code></pre>
+
+      <p><strong>暂不设计</strong>：<code>/api/v1/ingest</code> 数据喂养、<code>/api/v1/skills</code> 列表等，未来扩展。</p>
+    </section>
+
+    <!-- 第 16 章 -->
+    <section id="sec-16">
+      <h2>16. 路线图与评测</h2>
+
+      <h3>实现顺序总览</h3>
+      <p>原则：<strong>先能对话，再能检索，最后能评测与扩展</strong>。每一小步都有可运行产出，避免一次性堆满三库。</p>
+      <table>
+        <thead>
+          <tr><th>大阶段</th><th>周期</th><th>目标</th><th>验收标准</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Phase 1 基础平台</td><td>第 1–6 周</td><td>SSE 多轮对话 + PG 持久化 + Skills</td><td>POST chat 流式返回，历史可加载，Skill 可切换</td></tr>
+          <tr><td>Phase 2 知识增强</td><td>第 7–12 周</td><td>Neo4j + Ingestion + Hybrid RAG</td><td>上传设定后可问答并带引用</td></tr>
+          <tr><td>Phase 3 GraphRAG</td><td>第 13 周起</td><td>图扩展 + 评测 + MCP 实例</td><td>RAGAS 基线达标，首个 MCP 工具可用</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Phase 1 细化进度（第 1–6 周）</h3>
+      <table>
+        <thead>
+          <tr><th>周次</th><th>任务</th><th>产出物</th><th>前置依赖</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>第 1 周</td>
+            <td>配置体系：L1 常量、Profile 预设、ConfigResolver、<code>config/app.yaml</code></td>
+            <td><code>app/core/config_resolver.py</code>、<code>profile_presets.py</code>、单元测试</td>
+            <td>无</td>
+          </tr>
+          <tr>
+            <td>第 2 周</td>
+            <td>Provider Registry：OpenAI 兼容适配器（GLM 默认）、<code>build_llm()</code></td>
+            <td><code>app/providers/</code>、可配置切换模型、连通性测试</td>
+            <td>第 1 周配置</td>
+          </tr>
+          <tr>
+            <td>第 3 周</td>
+            <td>PostgreSQL：表结构 migrations、<code>conversations</code>/<code>messages</code> CRUD</td>
+            <td><code>app/storage/postgres/</code>、<code>.env.example</code> 数据库项</td>
+            <td>第 1 周配置</td>
+          </tr>
+          <tr>
+            <td>第 4 周</td>
+            <td>LangGraph 最小图：<code>load_history</code> → <code>chat</code> → <code>save_messages</code></td>
+            <td><code>app/graph/chat_graph.py</code>、state 定义、thread_id 持久化</td>
+            <td>第 2–3 周</td>
+          </tr>
+          <tr>
+            <td>第 5 周</td>
+            <td>Skills：<code>skills/novel-writing/SKILL.md</code>、Registry 扫描与匹配；POST SSE chat</td>
+            <td><code>app/skills/</code>、<code>POST /api/v1/chat</code> 流式接口</td>
+            <td>第 4 周图</td>
+          </tr>
+          <tr>
+            <td>第 6 周</td>
+            <td>MCP 预留（<code>mcp.enabled: false</code>）、集成测试、文档同步</td>
+            <td><code>app/mcp/client.py</code> 空实现、E2E 测试、更新 ARCHITECTURE</td>
+            <td>第 5 周 SSE</td>
+          </tr>
+        </tbody>
+      </table>
+      <p><strong>Phase 1 里程碑</strong>：用户可通过 POST SSE 与「资深小说作家」Skill 多轮对话，消息写入 PG，可通过配置切换 LLM 厂商。</p>
+
+      <h3>Phase 2 细化进度（第 7–12 周）</h3>
+      <table>
+        <thead>
+          <tr><th>周次</th><th>任务</th><th>产出物</th><th>前置依赖</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>第 7 周</td>
+            <td>Neo4j 接入：节点/边 Schema、连接池、健康检查</td>
+            <td><code>app/storage/neo4j/</code>、Cypher 初始化脚本</td>
+            <td>Phase 1 完成</td>
+          </tr>
+          <tr>
+            <td>第 8 周</td>
+            <td>Ingestion Lite：切分 → embedding → 写 PG + Neo4j（含边构建）</td>
+            <td><code>app/services/ingestion/</code>、内部调试入口或脚本</td>
+            <td>第 7 周 Neo4j</td>
+          </tr>
+          <tr>
+            <td>第 9 周</td>
+            <td>Hybrid 检索：Neo4j vector + PG tsvector → RRF</td>
+            <td><code>app/retrieval/hybrid.py</code>、检索节点接入 LangGraph</td>
+            <td>第 8 周有数据</td>
+          </tr>
+          <tr>
+            <td>第 10 周</td>
+            <td>Rerank + Document Grader + Query Rewrite 回路</td>
+            <td><code>app/retrieval/rerank.py</code>、<code>grader.py</code>、检索状态机（第 7 章图）</td>
+            <td>第 9 周 Hybrid</td>
+          </tr>
+          <tr>
+            <td>第 11 周</td>
+            <td>Graph Expand（2 跳边遍历）+ 条件 Web 兜底 + 历史压缩 <code>compact_history</code></td>
+            <td>图扩展节点、Web 工具、<code>retention_days</code> 生效</td>
+            <td>第 10 周 Grader</td>
+          </tr>
+          <tr>
+            <td>第 12 周</td>
+            <td>接入首个 MCP Server（如 filesystem）验证 ToolNode 流程</td>
+            <td><code>mcp.enabled: true</code> 示例配置、集成测试</td>
+            <td>第 11 周 RAG 稳定</td>
+          </tr>
+        </tbody>
+      </table>
+      <p><strong>Phase 2 里程碑</strong>：上传小说设定后，chat 可检索 PG+Neo4j 并带引用回答；检索失败时 Web 兜底；历史超期自动压缩。</p>
+
+      <h3>Phase 3 细化进度（第 13 周起，按需推进）</h3>
+      <table>
+        <thead>
+          <tr><th>序号</th><th>任务</th><th>产出物</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>3.1</td><td>实体/关系自动抽取</td><td>Ingestion 增强，自动建 MENTIONS/RELATED_TO 边</td><td>减少手工建图</td></tr>
+          <tr><td>3.2</td><td>Hallucination Grader</td><td>生成后 grounded 检查节点</td><td>未证据支撑则重生成</td></tr>
+          <tr><td>3.3</td><td>RAGAS 评测基线</td><td>评测脚本 + 黄金问答集</td><td>Context Precision &gt; 0.8 等</td></tr>
+          <tr><td>3.4</td><td>Skill 级 MCP 依赖声明</td><td><code>tools.yaml</code> 与 Skill 绑定</td><td>导演 Skill 声明 media MCP 等</td></tr>
+          <tr><td>3.5</td><td>多 Skill 扩展</td><td><code>director</code>、<code>storyboard</code> SKILL.md</td><td>验证插件机制</td></tr>
+        </tbody>
+      </table>
+
+      <h3>依赖关系简图</h3>
+      <pre><code>配置体系 ──┬──> Provider Registry ──┐
+           └──> PostgreSQL ──────────┼──> LangGraph 最小图 ──> Skills + SSE
+                                    │
+Neo4j ──> Ingestion ──> Hybrid ──> Rerank/Grader ──> Graph Expand ──> MCP 实例
+                                              └──> Web 兜底
+                                                        └──> RAGAS 评测</code></pre>
+
+      <h3>评测指标（RAGAS）</h3>
+      <table>
+        <thead><tr><th>指标</th><th>目标</th><th>工具</th></tr></thead>
+        <tbody>
+          <tr><td>Context Precision</td><td>&gt; 0.8</td><td>RAGAS</td></tr>
+          <tr><td>Faithfulness</td><td>&gt; 0.9</td><td>RAGAS</td></tr>
+          <tr><td>Answer Relevancy</td><td>&gt; 0.85</td><td>RAGAS</td></tr>
+        </tbody>
+      </table>
+      <h3>不在第一版范围</h3>
+      <ul>
+        <li>Milvus / MongoDB / ChromaDB / Meilisearch</li>
+        <li>完整 Microsoft GraphRAG 社区摘要</li>
+        <li>IDE 项目配置文件（<code>.run/</code>、<code>.vscode/</code> 等）</li>
+        <li>多租户 / 权限系统（预留表结构）</li>
+        <li>MCP Server 具体实现（仅预留 Client 接入）</li>
+        <li>平台级 Hooks（见第 12 章）</li>
+      </ul>
+    </section>
+
+    <!-- 附录 -->
+    <section id="appendix">
+      <h2>附录：目标目录结构（实现后）</h2>
+      <pre><code>lanmo/
+├── app/
+│   ├── api/                 # chat.py (SSE)
+│   ├── core/
+│   │   ├── config.py
+│   │   ├── config_resolver.py
+│   │   └── profile_presets.py
+│   ├── graph/               # LangGraph 节点与状态
+│   │   ├── nodes/
+│   │   ├── edges.py
+│   │   └── chat_graph.py
+│   ├── providers/           # GLM / DeepSeek / Kimi 等适配器
+│   ├── retrieval/           # hybrid, rerank, grader, web
+│   ├── storage/
+│   │   ├── postgres/
+│   │   └── neo4j/
+│   ├── skills/              # registry, loader
+│   └── mcp/                 # MCP Client 封装
+├── config/
+│   └── app.yaml             # 运维配置（profile 等）
+├── docs/
+│   ├── ARCHITECTURE.html    # 架构设计文档（本文档）
+│   └── js/
+│       ├── flow-config.js
+│       ├── flow-node-factory.js
+│       ├── flow-edge-factory.js
+│       ├── flow-mount.js
+│       ├── flow-bootstrap.js
+│       ├── flow-diagram-request.js
+│       ├── flow-diagram-route.js
+│       ├── flow-diagram-sync.js
+│       ├── flow-diagram-retrieval.js
+│       ├── flow-diagram-langgraph.js
+│       ├── flow-diagram-mcp.js
+│       └── flow-diagram-ingestion.js
+├── skills/
+│   └── novel-writing/SKILL.md
+└── tests/</code></pre>
+      <h3>项目规则（已落地）</h3>
+      <ul>
+        <li>文档同步：每次开发后对照 <code>.cursor/rules/doc-sync.mdc</code> 更新相关文档</li>
+        <li>代码规范：方法体 ≤20 行、辅助方法独立文件、字面量配置化、注释完整</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>Lanmo 架构设计文档 v1.0 · 2026-07-07</p>
+      <p>文档同步规则：<code>.cursor/rules/doc-sync.mdc</code></p>
+    </footer>
+  </main>
+</div>
+
+<script>
+  /** Vue Flow IIFE 包依赖的全局 production 标识（CDN 环境 polyfill） */
+  window.production = 'production';
+  window.process = window.process || { env: { NODE_ENV: 'production' } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vue-flow/core@1.48.2/dist/vue-flow-core.iife.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vue-flow/controls@1.1.3/dist/vue-flow-controls.iife.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vue-flow/background@1.3.2/dist/vue-flow-background.iife.js"></script>
+<script src="js/flow-config.js"></script>
+<script src="js/flow-node-factory.js"></script>
+<script src="js/flow-edge-factory.js"></script>
+<script src="js/flow-mount.js"></script>
+<script src="js/flow-diagram-request.js"></script>
+<script src="js/flow-diagram-route.js"></script>
+<script src="js/flow-diagram-sync.js"></script>
+<script src="js/flow-diagram-retrieval.js"></script>
+<script src="js/flow-diagram-langgraph.js"></script>
+<script src="js/flow-diagram-mcp.js"></script>
+<script src="js/flow-diagram-ingestion.js"></script>
+<script src="js/flow-bootstrap.js"></script>
+</body>
+</html>

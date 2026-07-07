@@ -67,10 +67,25 @@ lanmo/
 
 ## 文档
 
+- 架构设计文档（**浏览器打开**）: [docs/ARCHITECTURE.html](docs/ARCHITECTURE.html) — 全部流程图为 Vue Flow（可缩放、可拖拽节点），含 API/State 数据格式示例
+
+在资源管理器中双击 `docs/ARCHITECTURE.html`，或用浏览器直接打开该文件即可阅读（Vue Flow 需联网加载 CDN）。
+
 启动后访问：
 
 - API 文档: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
+
+### 文档维护约定
+
+每次开发完成后，须对照代码同步更新相关文档：
+
+- **删除**：已废弃功能、已删除接口/文件的描述
+- **更新**：路径、命令、参数、流程等与代码不一致的内容
+- **添加**：新功能、新接口、新配置缺失的说明
+- **避免冗余**：不重复描述，保持文档与代码一致
+
+项目规则详见 [`.cursor/rules/doc-sync.mdc`](.cursor/rules/doc-sync.mdc)。
 
 ## 路由注册约定
 
