@@ -1,0 +1,264 @@
+# =============================================================================
+# lanmo 运维配置 · config/app.yaml
+# =============================================================================
+# 【管什么】Agent 业务行为：运行套餐、模型、Skill 目录、会话保留等
+# 【不管什么】服务端口、调试开关 → 见项目根 .env（app/core/config.py 读取）
+# 【谁修改】运维或开发者；Phase 1 起由 ConfigResolver 在启动/请求时读取
+# 【详细设计】docs/ARCHITECTURE.html 第 8 章 sec-08
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# profile · 运行套餐（L2 选档，最重要的一项）
+# -----------------------------------------------------------------------------
+# 含义：选一套预设参数，不必手写 max_retries、retrieve_top_k 等
+# 可选值：
+#   dev     开发档，检索条数较少，便于本地调试（当前默认）
+#   prod    生产档，检索条数更多
+#   strict  严格档，无检索证据时可拒答（refuse_when_no_evidence: true）
+# 示例：profile: prod
+# 解析代码：app/core/config_resolver.py → profile_presets.py
+profile: dev
+
+# -----------------------------------------------------------------------------
+# model · 大模型（Phase 1 第 2 周 Provider Registry 使用）
+# -----------------------------------------------------------------------------
+# provider：厂商 id，在 Registry 注册，非写死枚举；示例 zhipu / deepseek
+# model：该厂商下的模型名；示例 glm-4-flash
+# api_base：OpenAI 兼容 Chat Completions 地址；示例为智谱 v4 地址
+# api_key：不在此文件，放 .env（避免密钥进 Git）
+# 示例：
+#   model:
+#     provider: deepseek
+#     model: deepseek-chat
+#     api_base: https://api.deepseek.com/v1
+model:
+  provider: zhipu
+  model: glm-4-flash
+  api_base: https://open.bigmodel.cn/api/paas/v4
+
+# -----------------------------------------------------------------------------
+# route · 意图路由（route_question 节点，业内「路由级联」做法）
+# -----------------------------------------------------------------------------
+# mode：路由模式；可选值：
+#   rules   只用规则层（关键词命中，零成本零延迟，换个说法可能漏判）
+#   llm     每次都调 LLM 结构化输出（最准但每轮多一次模型调用）
+#   hybrid  级联（推荐默认）：规则层先判，置信度低于阈值才升级 LLM
+# llm_confidence_threshold：hybrid 模式下，规则层置信度低于该值才调 LLM
+#   取值 0~1；规则层命中关键词置信度为 0.6、未命中为 0.5
+#   示例 0.6（默认）：关键词命中直接用规则结果，未命中才问 LLM
+#   调成 0.7 以上则每次都问 LLM（等价 mode: llm）
+# keywords：可选覆盖内置关键词表（不配置则用 route_rule_constants.py 内置默认）
+#   web / creative / project 三组，各为字符串数组
+#   示例：
+#     keywords:
+#       web: ["今天", "最新", "新闻"]
+# 读取代码：app/graph/route_settings_reader.py；级联逻辑：app/graph/route_cascade.py
+# 详细设计：docs/ARCHITECTURE.html sec-07 7.2
+route:
+  mode: hybrid
+  llm_confidence_threshold: 0.6
+
+# -----------------------------------------------------------------------------
+# grader · 检索相关性评估（Grader）
+# -----------------------------------------------------------------------------
+# mode：评估模式；可选值 rule / llm / hybrid（推荐）
+#   rule    仅词重叠规则（零成本）
+#   llm     每次调 Provider 结构化判定
+#   hybrid  规则优先，边界情况问 LLM
+# 读取代码：app/retrieval/grader_settings_reader.py
+grader:
+  mode: hybrid
+
+# -----------------------------------------------------------------------------
+# rerank · 重排序（检索链精排阶段）
+# -----------------------------------------------------------------------------
+# 含义：Hybrid 召回后，把 TopN 压成 TopK 条再喂给模型（K 来自 profile 的 rerank_top_k）
+# 当前实现：规则版精排（词重叠打分，见 app/retrieval/rerank.py），不读本段模型配置
+# provider / model：Cross-Encoder 模型预留配置（Phase 3 接入后生效）
+# 示例：model: bge-reranker-base
+rerank:
+  provider: semantic
+  model: bge-reranker-base
+
+# -----------------------------------------------------------------------------
+# web_search · 联网搜索（needs_web=true 或 Grader 无证据兜底时）
+# -----------------------------------------------------------------------------
+# provider：搜索后端，当前支持 tavily；api_key 放 .env 的 TAVILY_API_KEY
+# max_results：最多取几条结果；示例 5
+# 读取代码：app/retrieval/web_search_settings_reader.py
+# 未配置 TAVILY_API_KEY 时自动降级：不联网、返回空结果、不报错
+web_search:
+  provider: tavily
+  max_results: 5
+
+# -----------------------------------------------------------------------------
+# database · 业务库与知识库类型（声明性配置）
+# -----------------------------------------------------------------------------
+# business：会话、用户、消息 → postgresql
+# knowledge：向量+图谱 → neo4j
+# 说明：本段是架构声明（供阅读者了解选型），实际连接地址由 .env 的
+#       DATABASE_URL / NEO4J_URI 决定，代码不按本段做分支
+database:
+  business: postgresql
+  knowledge: neo4j
+
+# -----------------------------------------------------------------------------
+# history · 多轮对话保留
+# -----------------------------------------------------------------------------
+# retention_days：会话消息保留天数；load_history 只加载该天数内的消息
+# 读取代码：app/storage/postgres/history_settings_reader.py
+# 示例：retention_days: 90  表示约 3 个月
+history:
+  retention_days: 90
+
+# -----------------------------------------------------------------------------
+# ingestion · 内部数据导入流水线（Phase 2）
+# -----------------------------------------------------------------------------
+# chunk_size：每个 chunk 目标最大字符数；示例 800
+# chunk_overlap：相邻 chunk 重叠字符数，帮助检索时保留上下文；示例 80
+# dry_run_default：CLI 默认只预览不写库，避免误写远程数据库
+# embedding：向量化配置（写 Neo4j 与向量检索用）
+#   provider：向量化实现；可选值：
+#     hashing  本地确定性哈希向量（零依赖，学习/测试用）
+#     zhipu    智谱 embedding-2 API（需 ZHIPU_API_KEY，语义检索推荐）
+#   dimension：向量维度，必须与 Neo4j 向量索引维度一致；示例 256
+#   改 dimension 后需删除旧索引重建（索引名 chunk_embedding_index）
+ingestion:
+  chunk_size: 800
+  chunk_overlap: 80
+  dry_run_default: true
+  embedding:
+    provider: hashing
+    dimension: 256
+
+# -----------------------------------------------------------------------------
+# skills · Skill 人设目录（与 app/skills/ 代码配合）
+# -----------------------------------------------------------------------------
+# auto_discover: true   未指定 skill_id 时按 triggers 自动匹配 Skill
+#                false  只有请求显式传 skill_id 才加载 Skill
+# directory: skills    相对项目根的路径；人设 Markdown 放这里，不是 app/skills/
+# 读取代码：app/skills/skill_path_helper.py
+# 示例：新增 skills/video-editing/SKILL.md 即可，一般不用改 Python
+skills:
+  auto_discover: true
+  directory: skills
+
+# -----------------------------------------------------------------------------
+# video · 视频生产线（Phase V）
+# -----------------------------------------------------------------------------
+# storyboard.replace_on_submit: true  提交分镜时删除同 project 下旧镜头再写入（幂等覆盖）
+# storyboard.default_status: draft     新入库镜头初始状态（见 VIDEO_PIPELINE 状态机）
+# 读取代码：app/video/video_config_reader.py
+# 示例: replace_on_submit: false  则追加写入（学习阶段一般不推荐）
+video:
+  storyboard:
+    replace_on_submit: true
+    default_status: draft
+  # assets_dir: 视频镜头资产落盘根目录（关键帧 SVG、切片 Stub 等）
+  # 示例: data/video_assets
+  assets_dir: data/video_assets
+  # qa.max_retries: 单镜 QA 失败自动重试上限，超限 → awaiting_review
+  # 示例: 3
+  qa:
+    max_retries: 3
+  # compose.output_filename: V5 时间轴 Stub 文件名
+  # 示例: timeline.stub.json
+  compose:
+    output_filename: timeline.stub.json
+    output_mp4_filename: timeline.mp4
+  # review: HITL 人工审核开关（V6）
+  # storyboard: 分镜提交后是否需人工确认（默认 false，直接走 validate）
+  # keyframe: 渲染后是否建议关键帧确认（默认 true，由前端展示审核入口）
+  review:
+    storyboard: false
+    keyframe: true
+  # providers: V7 Provider 选型与能力矩阵（编排层裁剪参考输入）
+  # active.keyframe: stub | local_ffmpeg（关键帧仍 SVG，local 与 stub 同实现）
+  # active.clip: stub | local_ffmpeg（local 需系统 ffmpeg，产出 clip.mp4）
+  # active.compose: stub_json | local_ffmpeg（local 拼接 mp4 为 timeline.mp4）
+  # matrix.<id>: max_ref_images / max_ref_videos / native_audio / multi_shot / cost_per_second
+  # 读取代码：app/video/video_provider_config_reader.py
+  providers:
+    active:
+      keyframe: stub
+      clip: local_ffmpeg
+      compose: local_ffmpeg
+    matrix:
+      stub:
+        max_ref_images: 1
+        max_ref_videos: 0
+        native_audio: false
+        multi_shot: false
+        cost_per_second: 0.0
+      local_ffmpeg:
+        max_ref_images: 2
+        max_ref_videos: 1
+        native_audio: false
+        multi_shot: false
+        cost_per_second: 0.05
+  # budget: V7 项目级成本熔断（0 表示不限额）
+  # default_limit_usd: 单 project 累计 cost 上限（美元计价占位）
+  # fuse_on_render / fuse_on_compose: 是否在启动 Job 前校验预算
+  # 读取代码：app/video/video_budget_config_reader.py
+  budget:
+    default_limit_usd: 100.0
+    fuse_on_render: true
+    fuse_on_compose: true
+  # audio: V8 TTS 与字幕
+  # tts_provider: stub（静音 WAV）| edge_tts（微软 Edge 在线 TTS，需网络）
+  # edge_tts.default_voice: voice_id 未匹配时的默认音色
+  # edge_tts.voice_map: character_bible.voice_id → Edge 音色名（可选覆盖表）
+  # compose.mux_audio: local_ffmpeg 合成时是否将 dialogue 轨混入场（阶段 B / V8.5）
+  # compose.burn_subtitles: local_ffmpeg 合成后是否将 subtitles.srt 烧录进 timeline.mp4（阶段 G3）
+  audio:
+    tts_provider: edge_tts
+    edge_tts:
+      default_voice: zh-CN-XiaoxiaoNeural
+      # voice_map: 角色 bible voice_id → Edge 音色名（示例见下）
+      voice_map:
+        narrator: zh-CN-YunxiNeural
+        host: zh-CN-XiaoxiaoNeural
+    bgm:
+      default_volume: 0.25
+      # pause_before_compose: 对白完成后暂停，等待上传 BGM 再点续跑（默认 true）
+      pause_before_compose: true
+    compose:
+      mux_audio: true
+      burn_subtitles: true
+
+# -----------------------------------------------------------------------------
+# creative · 创作向导（阶段 F 澄清 / 阶段 E 大纲）
+# -----------------------------------------------------------------------------
+# clarification.enabled: 新开创作时是否推送结构化偏好问卷
+# clarification.allow_skip: 前端是否展示「跳过引导」
+# clarification.min_brief_chars: 用户 brief 短于该长度且无意图词时触发澄清
+# 读取代码：app/core/creative_config_reader.py
+creative:
+  clarification:
+    enabled: true
+    max_rounds: 3
+    questions_per_round_max: 5
+    allow_skip: true
+    min_brief_chars: 20
+  outline:
+    enabled: true
+    requires_clarification: true
+    auto_approve: false          # 测试/高级用户可关闭 HITL
+    max_revisions: 10            # 单大纲最大改稿轮次
+
+# -----------------------------------------------------------------------------
+# artifacts · 创作产物落盘（小说 TXT 等）
+# -----------------------------------------------------------------------------
+# novel_dir: 小说助手消息 TXT 根目录；save_messages 后自动写入
+# 示例: data/artifacts/novel
+# 读取代码：app/storage/local/artifact_config_reader.py
+artifacts:
+  novel_dir: data/artifacts/novel
+
+# -----------------------------------------------------------------------------
+# mcp · 外部工具协议（Phase 3；第一版关闭）
+# -----------------------------------------------------------------------------
+# enabled: false  不连接 MCP Server；各 Skill 的 tools.yaml 仅文档化预留
+# 示例：enabled: true  且配置 servers 后，generate 节点可调用外部工具
+mcp:
+  enabled: false

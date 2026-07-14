@@ -1,0 +1,14 @@
+# director Skill 工具声明（Phase 3 MCP 预留）
+# 当前 mcp.enabled=false，仅文档化未来依赖
+
+skill_id: director
+phase: 3
+mcp_enabled: false
+servers: []
+# 未来示例:
+# - id: filesystem
+#   use: 读写策划案 md/docx
+# - id: media
+#   use: 读取素材时长、分辨率、编码（ffprobe）
+# - id: transcription
+#   use: 调用 ASR 生成字幕参考

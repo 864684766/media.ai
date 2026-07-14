@@ -1,0 +1,15 @@
+{
+  "project_id": "async-demo",
+  "job_id": "a3e0bb325a594cd5a18fa21baa79d0ae",
+  "clips": [
+    {
+      "shot_id": "4e7f03744eab4c89a527deb23af6ca30",
+      "shot_no": "1",
+      "duration_sec": 2.0,
+      "transition": "",
+      "clip_uri": "async-demo/4e7f03744eab4c89a527deb23af6ca30/clip.stub.txt"
+    }
+  ],
+  "total_duration_sec": 2.0,
+  "subtitle_uri": "async-demo/compose/subtitles.srt"
+}

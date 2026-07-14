@@ -1,0 +1,15 @@
+{
+  "project_id": "async-api-resume",
+  "job_id": "d35381d32d97466aa6c4d8e7c48eb7e2",
+  "clips": [
+    {
+      "shot_id": "51014502dbc7422db4e55af146aa237f",
+      "shot_no": "1",
+      "duration_sec": 2.0,
+      "transition": "",
+      "clip_uri": "async-api-resume/51014502dbc7422db4e55af146aa237f/clip.stub.txt"
+    }
+  ],
+  "total_duration_sec": 2.0,
+  "subtitle_uri": "async-api-resume/compose/subtitles.srt"
+}

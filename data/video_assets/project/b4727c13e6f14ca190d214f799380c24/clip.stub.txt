@@ -1,0 +1,2 @@
+V3 Stub clip for shot 2
+action: 镜头跟随主角，展示地铁车厢内部，人们忙碌的场景。

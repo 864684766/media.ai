@@ -1,0 +1,28 @@
+[
+  {
+    "shot_no": "1",
+    "duration_sec": 3,
+    "shot_size": "远景",
+    "camera": "固定",
+    "action": "云雾中的仙山山门，晨光微露",
+    "dialogue": "",
+    "sfx": "风声",
+    "character_ids": [],
+    "scene_id": "scene_qingyun_gate",
+    "prop_ids": [],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "2",
+    "duration_sec": 4,
+    "shot_size": "中景",
+    "camera": "推轨",
+    "action": "少年主角推开山门，衣袂飘动",
+    "dialogue": "今日，便要入门修行。",
+    "sfx": "",
+    "character_ids": ["char_zhangsan"],
+    "scene_id": "scene_qingyun_gate",
+    "prop_ids": ["prop_wooden_gate"],
+    "transition": ""
+  }
+]

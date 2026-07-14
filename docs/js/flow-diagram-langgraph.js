@@ -22,14 +22,13 @@ function buildLanggraphFlowNodes() {
     horizNode('start', 0, y, '开始', '#dbeafe', '#2563eb'),
     horizNode('skill', dx, y, 'load_skill', '#dcfce7', '#16a34a'),
     horizNode('hist', dx * 2, y, 'load_history', '#dcfce7', '#16a34a'),
-    customDecisionNode('route', dx * 3 - 14, y - 30, 'route_question\n三选一'),
-    horizNode('retrieve', dx * 3, y + 120, '检索状态机', '#fef3c7', '#d97706'),
-    horizNode('web', dx * 4, y + 120, 'web_search', '#ffedd5', '#ea580c'),
+    customDecisionNode('route', dx * 3 - 14, y - 30, 'route_question\n能力开关'),
+    horizNode('retrieve', dx * 3, y + 120, 'retrieve_context\nHybrid+RRF+Grader', '#fef3c7', '#d97706'),
+    horizNode('web', dx * 4, y + 120, 'Web 兜底\n(no_evidence 时)', '#ffedd5', '#ea580c'),
     horizNode('compact', dx * 4, y, 'compact_history', '#dcfce7', '#16a34a'),
     horizNode('generate', dx * 5, y, 'generate', '#dcfce7', '#16a34a'),
-    horizNode('stream', dx * 6, y, 'stream_sse', '#dcfce7', '#16a34a'),
-    horizNode('save', dx * 7, y, 'save_messages', '#dcfce7', '#16a34a'),
-    horizNode('end', dx * 8, y, '结束', '#dbeafe', '#2563eb')
+    horizNode('save', dx * 6, y, 'save_messages', '#dcfce7', '#16a34a'),
+    horizNode('end', dx * 7, y, '结束', '#dbeafe', '#2563eb')
   ];
 }
 
@@ -42,14 +41,13 @@ function buildLanggraphFlowEdges() {
     horizEdge('l1', 'start', 'skill', '① 进入图'),
     horizEdge('l2', 'skill', 'hist', '② 加载 Skill'),
     horizEdge('l3', 'hist', 'route', '③ 读 PG 历史'),
-    branchEdge('l4a', 'route', 'retrieve', 'A 检索', BRANCH_A_COLOR, 'down'),
-    branchEdge('l4b', 'route', 'web', 'B Web', BRANCH_B_COLOR, 'right'),
-    branchEdge('l4c', 'route', 'compact', 'C 跳过', BRANCH_C_COLOR, 'right'),
-    mergeEdge('l5a', 'retrieve', 'compact', '⑤ 合并上下文', 'right'),
-    mergeEdge('l5b', 'web', 'compact', '⑤ 合并上下文', 'left'),
-    horizEdge('l6', 'compact', 'generate', '⑥ 超阈值压缩'),
-    horizEdge('l7', 'generate', 'stream', '⑦ 调 Provider'),
-    horizEdge('l8', 'stream', 'save', '⑧ SSE 输出'),
-    horizEdge('l9', 'save', 'end', '⑨ 写 PG')
+    branchEdge('l4a', 'route', 'retrieve', 'needs_project 或 needs_web', BRANCH_A_COLOR, 'down'),
+    branchEdge('l4b', 'retrieve', 'web', 'Grader 判无证据', BRANCH_B_COLOR, 'right'),
+    branchEdge('l4c', 'route', 'compact', '仅创作（skip_retrieve）', BRANCH_C_COLOR, 'right'),
+    mergeEdge('l5a', 'retrieve', 'compact', '⑤ 证据写入 state.retrieval', 'right'),
+    mergeEdge('l5b', 'web', 'compact', '⑤ Web 结果并入', 'left'),
+    horizEdge('l6', 'compact', 'generate', '⑥ 压缩后进生成'),
+    horizEdge('l7', 'generate', 'save', '⑦ 流式完成写 PG'),
+    horizEdge('l8', 'save', 'end', '⑧ 结束（SSE 在 API 层）')
   ];
 }

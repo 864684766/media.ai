@@ -1,0 +1,10 @@
+"""视频管线异步 Job 常量（阶段 D3）。"""
+
+PIPELINE_JOB_STATUS_PENDING = "pending"
+PIPELINE_JOB_STATUS_RUNNING = "running"
+PIPELINE_JOB_STATUS_PAUSED = "paused"
+PIPELINE_JOB_STATUS_COMPLETED = "completed"
+PIPELINE_JOB_STATUS_FAILED = "failed"
+
+# API 路径
+PIPELINE_JOB_ROUTE_PREFIX = "/pipeline/jobs"

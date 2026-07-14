@@ -1,0 +1,15 @@
+{
+  "project_id": "pipe-demo",
+  "job_id": "9e5fb67c7f7747c7985ca027d299be32",
+  "clips": [
+    {
+      "shot_id": "0c210a99e68e4baab9aa26a4c06429ab",
+      "shot_no": "1",
+      "duration_sec": 2.0,
+      "transition": "",
+      "clip_uri": "pipe-demo/0c210a99e68e4baab9aa26a4c06429ab/clip.stub.txt"
+    }
+  ],
+  "total_duration_sec": 2.0,
+  "subtitle_uri": "pipe-demo/compose/subtitles.srt"
+}

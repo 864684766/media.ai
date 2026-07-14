@@ -106,7 +106,7 @@ function pgSideEdge(id, source, target, label) {
 }
 
 /**
- * 创建路由分支边（三分支互斥，中文条件标签）
+ * 创建路由分支边（能力开关标签，可组合启用）
  * @param {string} id 边 id
  * @param {string} source 源节点 id
  * @param {string} target 目标节点 id

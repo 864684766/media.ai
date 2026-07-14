@@ -1,0 +1,15 @@
+{
+  "project_id": "demo",
+  "job_id": "3ef56a7bd6864cbea55975625380b48a",
+  "clips": [
+    {
+      "shot_id": "e047e503e6f24b6fbe7e0430c3adb7d7",
+      "shot_no": "1",
+      "duration_sec": 3.0,
+      "transition": "",
+      "clip_uri": "demo/e047e503e6f24b6fbe7e0430c3adb7d7/clip.stub.txt"
+    }
+  ],
+  "total_duration_sec": 3.0,
+  "subtitle_uri": "demo/compose/subtitles.srt"
+}

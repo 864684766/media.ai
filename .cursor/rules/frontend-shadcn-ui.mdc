@@ -1,0 +1,53 @@
+---
+description: media-web 前端 UI 规范 — 一律使用 shadcn/ui 封装组件，禁止原生交互 DOM 与浏览器弹窗
+globs:
+  - media-web/src/**/*
+  - "**/media-web/src/**/*
+---
+
+# media-web 前端 UI 规范（shadcn/ui）
+
+**目标**：交互控件视觉与行为统一；业务组件不直接写原生 HTML 表单控件。
+
+## 一、必须使用的封装（`src/components/ui/`）
+
+| 场景 | 使用组件 | 禁止 |
+|------|----------|------|
+| 按钮 | `Button` | 业务代码中裸 `<button>` |
+| 文本输入 | `Input` | 裸 `<input>` |
+| 多行输入 | `Textarea`（`ui/input.tsx` 导出） | 裸 `<textarea>` |
+| 下拉 | `Select` + `SelectTrigger/Content/Item` | 裸 `<select>` |
+| 链接按钮 | `LinkButton` | 裸 `<a>` 冒充按钮样式 |
+| 卡片 | `Card` | 无样式 div 冒充卡片（知识库等） |
+| 对话框 | `Dialog` + `DialogContent/Header/Footer/Title` | `window.prompt` / `alert` / `confirm` |
+| 表单标签 | `Label` | 裸 `<label>`（对话框、表单内） |
+
+**说明**：`ui/button.tsx`、`ui/input.tsx` 等文件内部可使用原生标签，这是 shadcn 基元层唯一允许处。
+
+## 二、禁止事项
+
+- `window.prompt`、`window.alert`、`window.confirm`
+- 在 `src/components/`（非 `ui/`）、`src/pages/`、`src/hooks/` 中使用裸 `<button>`、`<input>`、`<select>`、`<textarea>`
+- 引入其它 UI 库与 shadcn 混用（除非先写入本规范并统一迁移）
+
+## 三、新增交互模式
+
+1. 优先在 [shadcn/ui](https://ui.shadcn.com) 选型（Dialog、Sheet、Popover 等）
+2. 安装对应 `@radix-ui/*` 依赖
+3. 在 `src/components/ui/` 增加基元封装（样式对齐 `dialog_styles.ts` / `select_styles.ts` 冰感蓝主题）
+4. 业务组件只 import `@/components/ui/*`
+
+## 四、自检清单
+
+```text
+□ 无 window.prompt/alert/confirm
+□ 业务组件无裸 button/input/select/textarea
+□ 新建弹窗使用 Dialog 而非原生
+□ pnpm run build 通过
+```
+
+## 五、权威路径
+
+- 基元：`media-web/src/components/ui/`
+- 样式 token：`media-web/src/styles/*_styles.ts`
+- 示例：`CreateProjectDialog.tsx`、`ProjectSelect.tsx`

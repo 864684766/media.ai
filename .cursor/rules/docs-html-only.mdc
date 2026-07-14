@@ -1,0 +1,40 @@
+---
+description: 项目文档一律使用 HTML，禁止新增 Markdown 文档
+alwaysApply: true
+---
+
+# 文档格式：仅 HTML
+
+## 核心原则
+
+**项目文档（docs/、入门说明等）一律用 HTML 展示，不再新增或维护 `.md` 文档。**
+
+## 适用范围
+
+| 使用 HTML | 不使用 HTML（例外） |
+|-----------|---------------------|
+| `docs/*.html` 架构、进度、入门、视频生产线 | `skills/*/SKILL.md` Agent Skills 标准资产 |
+| 项目说明 → `docs/index.html` | `skills/*/prompts/*.md` Skill 提示词内容 |
+| 开发进度 → `docs/DEVELOPMENT_LOG.html` | `.cursor/rules/*.mdc` Cursor 规则（IDE 格式） |
+| 视频生产线 → `docs/VIDEO_PIPELINE.html` | `.env.example` 注释 |
+| 配置说明写在 `config/app.yaml` 注释 | |
+
+## 新建文档流程
+
+1. 在 `docs/` 下创建 `.html`，样式引用 `css/doc-base.css`
+2. 左侧导航与 `ARCHITECTURE.html`、`index.html` 互链
+3. 更新 `doc-sync.mdc` 文档索引表
+4. 更新 `DEVELOPMENT_LOG.html` 变更记录
+5. **禁止**创建 `docs/*.md` 或根目录 `README.md`
+
+## HTML 文档最低要求
+
+- 页面语言 `lang="zh-CN"`
+- 共用样式：`link rel="stylesheet" href="css/doc-base.css"`（子目录注意相对路径）
+- 页眉：标题 + 更新日期
+- 页脚：链到其它 HTML 文档与 `.cursor/rules/`
+- 表格、代码块、章节锚点（`id="sec-..."`）便于跳转
+
+## 迁移约定
+
+已有 Markdown 文档须转为 HTML 后**删除**原 `.md`，并全局替换链接（含 ARCHITECTURE 页脚、规则文件）。

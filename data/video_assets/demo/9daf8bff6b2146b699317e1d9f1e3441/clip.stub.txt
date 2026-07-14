@@ -1,0 +1,2 @@
+V3 Stub clip for shot 05
+action: 出现行动号召字幕，引导观众采取行动。

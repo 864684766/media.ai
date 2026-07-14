@@ -1,0 +1,30 @@
+{
+  "characters": [
+    {
+      "character_id": "char_zhangsan",
+      "name": "张三",
+      "appearance": "青衫少年，眉目清朗",
+      "costume": "青云道袍",
+      "age_band": "青年",
+      "ref_image_urls": [],
+      "voice_id": ""
+    }
+  ],
+  "scenes": [
+    {
+      "scene_id": "scene_qingyun_gate",
+      "name": "青云山门",
+      "setting": "云雾缭绕的仙山大门，石阶蜿蜒",
+      "lighting": "清晨侧光",
+      "ref_image_urls": []
+    }
+  ],
+  "props": [
+    {
+      "prop_id": "prop_wooden_gate",
+      "name": "木门",
+      "description": "古朴山门木门",
+      "ref_image_urls": []
+    }
+  ]
+}

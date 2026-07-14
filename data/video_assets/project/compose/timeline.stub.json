@@ -1,0 +1,46 @@
+{
+  "project_id": "project",
+  "job_id": "4c1bdbe0d63347d89e053ec02211e565",
+  "clips": [
+    {
+      "shot_id": "351b02499f774feca08c37ec46385c87",
+      "shot_no": "1",
+      "duration_sec": 3.0,
+      "transition": "cut",
+      "clip_uri": "project/351b02499f774feca08c37ec46385c87/clip.stub.txt"
+    },
+    {
+      "shot_id": "b4727c13e6f14ca190d214f799380c24",
+      "shot_no": "2",
+      "duration_sec": 5.0,
+      "transition": "cut",
+      "clip_uri": "project/b4727c13e6f14ca190d214f799380c24/clip.stub.txt"
+    },
+    {
+      "shot_id": "8d97ca1977584e79ba03bcdab70cab94",
+      "shot_no": "3",
+      "duration_sec": 16.0,
+      "transition": "cut",
+      "clip_uri": "project/8d97ca1977584e79ba03bcdab70cab94/clip.stub.txt"
+    },
+    {
+      "shot_id": "d9afddc2aa0749078acdcd1b0671fab2",
+      "shot_no": "4",
+      "duration_sec": 9.0,
+      "transition": "dissolve",
+      "clip_uri": "project/d9afddc2aa0749078acdcd1b0671fab2/clip.stub.txt"
+    }
+  ],
+  "total_duration_sec": 33.0,
+  "audio_tracks": [
+    {
+      "audio_id": "a75a64cb2ec74ff097dba3a6e8e85c48",
+      "shot_id": "351b02499f774feca08c37ec46385c87",
+      "track_type": "dialogue",
+      "uri": "project/audio/351b02499f774feca08c37ec46385c87/dialogue.wav",
+      "duration_sec": 3.0,
+      "voice_id": "default"
+    }
+  ],
+  "subtitle_uri": "project/compose/subtitles.srt"
+}

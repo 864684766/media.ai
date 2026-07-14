@@ -1,0 +1,106 @@
+```json
+[
+  {
+    "shot_no": "01",
+    "duration_sec": 5,
+    "shot_size": "closeup",
+    "camera": "static",
+    "action": "品牌logo特写，逐渐放大",
+    "dialogue": "",
+    "sfx": "",
+    "character_ids": [],
+    "scene_id": "01",
+    "prop_ids": ["brand_logo"],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "02",
+    "duration_sec": 10,
+    "shot_size": "medium",
+    "camera": "tracking",
+    "action": "镜头跟随产品从远处接近，展示产品全貌",
+    "dialogue": "",
+    "sfx": "",
+    "character_ids": [],
+    "scene_id": "02",
+    "prop_ids": ["product"],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "03",
+    "duration_sec": 15,
+    "shot_size": "closeup",
+    "camera": "static",
+    "action": "产品特写，展示核心卖点",
+    "dialogue": "",
+    "sfx": "",
+    "character_ids": [],
+    "scene_id": "03",
+    "prop_ids": ["product"],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "04",
+    "duration_sec": 10,
+    "shot_size": "medium",
+    "camera": "static",
+    "action": "镜头展示使用产品后的效果",
+    "dialogue": "",
+    "sfx": "",
+    "character_ids": [],
+    "scene_id": "04",
+    "prop_ids": ["product", "effect"],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "05",
+    "duration_sec": 5,
+    "shot_size": "closeup",
+    "camera": "static",
+    "action": "出现品牌标语，字体简洁有力",
+    "dialogue": "品牌标语",
+    "sfx": "",
+    "character_ids": [],
+    "scene_id": "05",
+    "prop_ids": ["brand_logo"],
+    "transition": "dissolve"
+  },
+  {
+    "shot_no": "06",
+    "duration_sec": 5,
+    "shot_size": "medium",
+    "camera": "static",
+    "action": "镜头拉远，展示产品摆放场景",
+    "dialogue": "",
+    "sfx": "",
+    "character_ids": [],
+    "scene_id": "06",
+    "prop_ids": ["product"],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "07",
+    "duration_sec": 5,
+    "shot_size": "closeup",
+    "camera": "static",
+    "action": "镜头聚焦于行动号召按钮",
+    "dialogue": "立即购买",
+    "sfx": "",
+    "character_ids": [],
+    "scene_id": "07",
+    "prop_ids": ["call_to_action"],
+    "transition": "cut"
+  }
+]
+```
+
+## 分镜思路说明
+1. 第一镜以品牌logo特写开场，吸引观众注意力。
+2. 第二镜通过跟踪镜头展示产品从远处接近，增强视觉效果。
+3. 第三镜特写产品，展示核心卖点，强调产品特点。
+4. 第四镜展示使用产品后的效果，增加说服力。
+5. 第五镜出现品牌标语，字体简洁有力，加深品牌印象。
+6. 第六镜拉远镜头，展示产品摆放场景，增加画面信息。
+7. 第七镜聚焦于行动号召按钮，引导观众进行下一步操作。
+
+以上分镜表符合用户需求，场景和镜头运动符合电影感，字幕简洁有力。

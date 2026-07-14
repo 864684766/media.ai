@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.router_loader import discover_routers
 from app.core.constants import CHAT_ROUTE_PREFIX
+from app.core.video_constants import VIDEO_ROUTE_PREFIX
 
 
 def test_discover_routers_includes_chat() -> None:
@@ -16,6 +17,7 @@ def test_discover_routers_includes_chat() -> None:
     routers = discover_routers()
     assert len(routers) >= 1
     assert _has_chat_prefix(routers)
+    assert _has_video_prefix(routers)
 
 
 def _has_chat_prefix(routers: list[APIRouter]) -> bool:
@@ -29,5 +31,20 @@ def _has_chat_prefix(routers: list[APIRouter]) -> bool:
     """
     for router in routers:
         if router.prefix == CHAT_ROUTE_PREFIX:
+            return True
+    return False
+
+
+def _has_video_prefix(routers: list[APIRouter]) -> bool:
+    """检查路由列表中是否包含 video 前缀。
+
+    参数:
+        routers: 已扫描到的路由列表。
+
+    返回:
+        bool: 存在 video 前缀时为 True。
+    """
+    for router in routers:
+        if router.prefix == VIDEO_ROUTE_PREFIX:
             return True
     return False

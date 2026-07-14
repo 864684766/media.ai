@@ -40,14 +40,15 @@ function buildRequestFlowNodes() {
     decisionNode('route', FLOW_MAIN_X - 14, y0 + dy * 5),
     chainNode('retrieve', FLOW_LEFT_X, y0 + dy * 6.2, '⑨ Hybrid 检索\nNeo4j + PG', RETRIEVE_BG, RETRIEVE_BORDER),
     chainNode('grader', FLOW_LEFT_X, y0 + dy * 7.2, '⑩ Grader 评分\n不相关→重写', RETRIEVE_BG, RETRIEVE_BORDER),
+    chainNode('rewrite', FLOW_LEFT_X, y0 + dy * 7.7, '⑩′ rewrite_query', RETRIEVE_BG, '#b45309'),
     chainNode('rerank', FLOW_LEFT_X, y0 + dy * 8.2, '⑪⑫ Rerank\n+ 图扩展', RETRIEVE_BG, RETRIEVE_BORDER),
-    sideNode('web_direct', FLOW_RIGHT_X, y0 + dy * 6.2, 'Web Search\n⑧B 直接', WEB_BG, WEB_BORDER),
+    sideNode('web_direct', FLOW_RIGHT_X, y0 + dy * 6.2, 'Web Search\nneeds_web', WEB_BG, WEB_BORDER),
     sideNode('web_fallback', FLOW_RIGHT_X, y0 + dy * 7.6, 'Web Search\n⑩ 无证据兜底', WEB_BG, WEB_BORDER),
     mainNode('compact', 'default', FLOW_MAIN_X, y0 + dy * 9.6, 'compact_history\n⑭ 超阈值压缩', '#dcfce7', '#16a34a'),
-    mainNode('generate', 'default', FLOW_MAIN_X, y0 + dy * 10.8, 'generate\n⑰ MCP 可选', '#dcfce7', '#16a34a'),
-    sideNode('provider', FLOW_RIGHT_X, y0 + dy * 10.8, 'Provider Registry', '#ede9fe', '#7c3aed'),
-    mainNode('stream', 'default', FLOW_MAIN_X, y0 + dy * 12, 'stream_sse', '#dcfce7', '#16a34a'),
-    mainNode('save', 'default', FLOW_MAIN_X, y0 + dy * 13.2, 'save_messages', '#dcfce7', '#16a34a'),
+    mainNode('generate', 'default', FLOW_MAIN_X, y0 + dy * 10.8, 'generate\n⑮ 拼装+流式', '#dcfce7', '#16a34a'),
+    sideNode('provider', FLOW_RIGHT_X, y0 + dy * 10.8, 'Provider Registry\n⑯', '#ede9fe', '#7c3aed'),
+    mainNode('sse', 'default', FLOW_MAIN_X, y0 + dy * 12, 'FastAPI SSE\n⑰⑱', '#e0e7ff', '#4338ca'),
+    mainNode('save', 'default', FLOW_MAIN_X, y0 + dy * 13.2, 'save_messages\n⑲', '#dcfce7', '#16a34a'),
     sideNode('pg_save', FLOW_PG_SIDE_X, y0 + dy * 13.2, 'PostgreSQL', '#ffedd5', '#ea580c'),
     mainNode('client_end', 'output', FLOW_MAIN_X, y0 + dy * 14.4, 'SSE 响应结束', '#dbeafe', '#2563eb')
   ];
@@ -77,11 +78,11 @@ function buildRequestMainEdges() {
     flowEdge('e05', 'load_skill', 'load_history', '⑤ 下一节点 load_history'),
     pgSideEdge('e06', 'load_history', 'pg_hist', '⑥ 读取 PG 历史'),
     flowEdge('e07', 'load_history', 'route', '⑦ 进入路由判断'),
-    flowEdge('e15', 'compact', 'generate', '⑮ 拼装 prompt'),
-    sideEdge('e16', 'generate', 'provider', '⑯ 流式调用 LLM', 'right'),
-    flowEdge('e18', 'generate', 'stream', '⑱ 进入 SSE'),
-    flowEdge('e18b', 'stream', 'client_end', '⑱ 推送客户端'),
-    flowEdge('e19', 'stream', 'save', '⑲ 持久化消息'),
+    flowEdge('e15', 'compact', 'generate', '⑭→⑮ 进入生成'),
+    sideEdge('e16', 'generate', 'provider', '⑯ 流式 LLM', 'right'),
+    flowEdge('e17', 'generate', 'sse', '⑰ astream→SSE'),
+    flowEdge('e18', 'sse', 'client_end', '⑱ 推送客户端'),
+    flowEdge('e19', 'sse', 'save', '⑲ 持久化消息'),
     pgSideEdge('e19b', 'save', 'pg_save', '⑲ 写入 PG')
   ];
 }
@@ -92,9 +93,9 @@ function buildRequestMainEdges() {
  */
 function buildRequestRouteEdges() {
   return [
-    branchEdge('e08a', 'route', 'retrieve', 'A 查自己库→⑨', BRANCH_A_COLOR, 'left'),
-    branchEdge('e08b', 'route', 'web_direct', 'B 问实时→直接Web', BRANCH_B_COLOR, 'right'),
-    branchEdge('e08c', 'route', 'compact', 'C 闲聊续写→跳过', BRANCH_C_COLOR, 'down')
+    branchEdge('e08a', 'route', 'retrieve', 'needs_project→⑨', BRANCH_A_COLOR, 'left'),
+    branchEdge('e08b', 'route', 'web_direct', 'needs_web→Web', BRANCH_B_COLOR, 'right'),
+    branchEdge('e08c', 'route', 'compact', '仅创作→compact', BRANCH_C_COLOR, 'down')
   ];
 }
 
@@ -106,6 +107,8 @@ function buildRequestRetrieveEdges() {
   return [
     chainEdge('e09', 'retrieve', 'grader', '⑨ 召回+RRF'),
     chainEdge('e10a', 'grader', 'rerank', '有相关→⑪'),
+    chainEdge('e10c', 'grader', 'rewrite', '不相关→⑩′'),
+    loopEdge('e10d', 'rewrite', 'retrieve', 'retry<max', '#b45309'),
     fallbackEdge('e10b', 'grader', 'web_fallback', '无证据→兜底Web')
   ];
 }

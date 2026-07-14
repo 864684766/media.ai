@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>蓝魔 · 视频生产线架构</title>
+  <link rel="stylesheet" href="css/doc-base.css">
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <h2>文档导航</h2>
+    <ul>
+      <li><a href="index.html">项目入门</a></li>
+      <li><a href="ARCHITECTURE.html">架构设计</a></li>
+      <li><a href="VIDEO_PIPELINE.html" class="active">视频生产线</a></li>
+      <li><a href="DEVELOPMENT_LOG.html">开发进度日志</a></li>
+    </ul>
+    <h2 style="margin-top:1.5rem;">本页目录</h2>
+    <ul>
+      <li><a href="#sec-status">1. 现状与边界</a></li>
+      <li><a href="#sec-flow">2. 目标端到端流</a></li>
+      <li><a href="#sec-data">3. 数据模型</a></li>
+      <li><a href="#sec-graph">4. LangGraph 视频子图</a></li>
+      <li><a href="#sec-continuity">5. 一致性严控</a></li>
+      <li><a href="#sec-mcp">6. MCP / 服务契约</a></li>
+      <li><a href="#sec-api">7. API 草案</a></li>
+      <li><a href="#sec-phases">8. 分阶段验收</a></li>
+      <li><a href="#sec-todos">9. 开发待办</a></li>
+    </ul>
+  </nav>
+  <main>
+    <header class="doc-header">
+      <h1>视频生产线架构</h1>
+      <p class="meta">
+        <span class="tag">设计稿 · Phase V</span>
+        &nbsp;·&nbsp; 权威文档（一处权威）
+        &nbsp;·&nbsp; 更新日期：2026-07-10
+      </p>
+      <p style="margin-top:0.75rem;color:var(--muted);font-size:0.9rem;">
+        与 <a href="ARCHITECTURE.html#sec-10-4">ARCHITECTURE sec-10.4</a>（Skill 文本层）配合阅读：
+        本页描述<strong>结构化分镜 → 切片生成 → 一致性 QA → 合成</strong>的目标架构；
+        当前代码<strong>已实现 V1–V8.5 生产线 API、G2 策划→分镜、G3 字幕烧录、D1 LangGraph 子图、D2 MCP 工具、D3 异步 Job</strong>；
+        <strong>Phase E（Polish）</strong> 已完成：前端异步管线 UI、Alembic 加固、E2E 回归（步骤 54–58）。
+      </p>
+    </header>
+
+    <section id="sec-status">
+      <h2>1. 现状与边界</h2>
+      <blockquote>
+        <strong>一句话</strong>：视频目前是「AI 策划/分镜文本助手」，不是「自动视频生产线」。
+        长视频人物/场景/道具一致性<strong>无技术保障</strong>，仅有 Skill prompt 软约束。
+      </blockquote>
+      <table>
+        <thead><tr><th>能力</th><th>状态</th><th>代码 / 文档对照</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>creation_type=video</code></td>
+            <td><span class="tag">已实现</span></td>
+            <td><code>ChatRequest.creation_type</code>；Skill 池限定 <code>director</code> / <code>storyboard</code></td>
+          </tr>
+          <tr>
+            <td>导演 / 分镜 Skill（Markdown 输出）</td>
+            <td><span class="tag">已实现</span></td>
+            <td><code>skills/director/</code>、<code>skills/storyboard/</code>；走同一条 chat LangGraph</td>
+          </tr>
+          <tr>
+            <td>脚本/设定 RAG 检索</td>
+            <td><span class="tag">机制已有</span></td>
+            <td>灌入后 <code>needs_project</code> 可查；与小说共用 Hybrid</td>
+          </tr>
+          <tr>
+            <td>结构化 Shot JSON / 入库</td>
+            <td><span class="tag">V1 已实现</span></td>
+            <td><code>shots</code> 表、<code>POST/GET /api/v1/video/projects/{id}/...</code>、<code>scripts/submit_storyboard.py</code></td>
+          </tr>
+          <tr>
+            <td>角色/场景/道具圣经</td>
+            <td><span class="tag">V2 已实现</span></td>
+            <td><code>character_bible</code> / <code>scene_lock</code> / <code>prop_inventory</code> 表 + PUT bible API + validate</td>
+          </tr>
+          <tr>
+            <td>按镜切片生成 / 合成</td>
+            <td><span class="tag">V3–V8.5 已实现</span></td>
+            <td>render/qa/compose/audio API；local_ffmpeg mp4；edge_tts + 音画混轨（V8.5）</td>
+          </tr>
+          <tr>
+            <td>连续性 QA（防张冠李戴）</td>
+            <td><span class="tag">V4 已实现</span></td>
+            <td><code>continuity_qa_service</code>、失败不入合成队列</td>
+          </tr>
+          <tr>
+            <td>策划→分镜 REST（G2）</td>
+            <td><span class="tag">已实现</span></td>
+            <td><code>POST /api/v1/creative/plans/{id}/storyboard</code>；OutlineReviewPanel 一键按钮</td>
+          </tr>
+          <tr>
+            <td>字幕烧录进 mp4（G3）</td>
+            <td><span class="tag">已实现</span></td>
+            <td><code>video.audio.compose.burn_subtitles</code>；compose 响应 <code>subtitles_burned</code></td>
+          </tr>
+          <tr>
+            <td>LangGraph 视频子图（D1）</td>
+            <td><span class="tag">已实现</span></td>
+            <td><code>POST .../pipeline/run</code>；validate→render→qa→audio→compose</td>
+          </tr>
+          <tr>
+            <td>MCP 视频工具（D2）</td>
+            <td><span class="tag">已实现</span></td>
+            <td><code>render_shot</code>、<code>continuity_check</code>、<code>compose_timeline</code></td>
+          </tr>
+          <tr>
+            <td>异步管线 Job（D3）</td>
+            <td><span class="tag">已实现</span></td>
+            <td><code>video_pipeline_jobs</code>；<code>run/async</code>、<code>jobs/{id}</code>、<code>resume</code></td>
+          </tr>
+          <tr>
+            <td>前端异步管线 UI（E1）</td>
+            <td><span class="tag">已实现</span></td>
+            <td>media-web <code>useVideoPipelineJob</code> 轮询 Job、续跑按钮；默认 <code>run/async</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>与小说主链路的关系</h3>
+      <ul>
+        <li><strong>共用</strong>：SSE Chat、LangGraph 准备图、Provider、PG 会话、Hybrid RAG、Skill Registry</li>
+        <li><strong>小说已完成主产品闭环</strong>：续写/润色 + 设定检索 + citation（Phase 1–2）</li>
+        <li><strong>视频文本层已完成</strong>：策划案 / 分镜表；<strong>生产线属 Phase V</strong>（本页）</li>
+      </ul>
+      <h3 id="sec-benchmark">1.1 与市面成熟工具对标（2026-07 复核）</h3>
+      <p>
+        对标对象：管线型（LTX Studio、mStudio）与切片型（Runway Gen-4.5 References、Kling 3.0 多镜模式、
+        Veo 3.1 ingredients、Seedance 2.0 多模态输入、Sora 2）。业界共识做法与本设计差距如下，
+        差距项已并入后续章节与 V1–V8 排期：
+      </p>
+      <table>
+        <thead><tr><th>业界共识做法</th><th>原设计状态</th><th>本次补全</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>关键帧先行</strong>：先用图像模型出每镜关键帧（便宜、可人工确认），再图生视频；视觉决策在图像层锁定，视频模型只管运动</td>
+            <td>缺失——直接 render_shot 文生视频，bible 参考图来源也未交代</td>
+            <td>§2 流程与 §4 子图加 <code>render_keyframe</code> 节点；shots 增 <code>keyframe_uri</code>；排期入 V3</td>
+          </tr>
+          <tr>
+            <td><strong>音频轨</strong>：对白 TTS、BGM、音效、字幕、口型是成片标配（Veo 原生音频、LTX lip-sync）</td>
+            <td>缺失——仅 shot.sfx 一个文本字段，合成只拼视频</td>
+            <td>§3.4 音频数据模型 + §6 <code>tts_dialogue</code> 契约；新增阶段 V8</td>
+          </tr>
+          <tr>
+            <td><strong>全局风格锁</strong>：style bible 段落逐镜注入 + 统一调色，防止跨镜色调/画风漂移</td>
+            <td>缺失——只有角色/场景/道具三类实体锁</td>
+            <td>video_projects 增 <code>style_bible</code>/画幅字段；QA 增风格检查项</td>
+          </tr>
+          <tr>
+            <td><strong>人工审核（HITL）</strong>：分镜、关键帧、成片有确认/驳回流</td>
+            <td>薄弱——仅 QA 超限「等待人工」一句</td>
+            <td>状态机增 <code>awaiting_review</code>；API 增确认接口；前端属 V6</td>
+          </tr>
+          <tr>
+            <td><strong>成本控制</strong>：视频按秒计费（约 $0.03–0.17/秒），需成本记录与项目预算上限</td>
+            <td>缺失</td>
+            <td>shot_assets 增 <code>cost</code>；配置 <code>video.budget</code>（V7）</td>
+          </tr>
+          <tr>
+            <td><strong>Provider 能力差异</strong>：参考输入数量（Sora 1–2 图 / Veo 图+视频 / Seedance 9 图 3 视频 3 音频）、Kling 原生多镜连贯模式</td>
+            <td>未考虑——render_shot 契约按单参考图假设</td>
+            <td>§6 契约改多参考输入；V7 增 Provider 能力矩阵要求</td>
+          </tr>
+          <tr>
+            <td><strong>多候选（takes）</strong>：同镜并行生成 2–4 候选选优</td>
+            <td>只有失败重试语义</td>
+            <td>shot_assets 增 <code>take_no</code>（V3 起可选）</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-flow">
+      <h2>2. 目标端到端流</h2>
+      <pre><code>用户需求
+  → director 策划（场景级视听方案，可仍走 chat）
+  → storyboard 结构化分镜（JSON + 入库，非仅 Markdown）
+  → 绑定 / 补全 角色·场景·道具·风格圣经（bible + style）
+  → [HITL] 分镜确认（可跳过，配置项）
+  → 关键帧生成（render_keyframe：图像模型，注入 bible 参考图 + style）
+  → [HITL] 关键帧确认（可跳过）
+  → 按镜切片生成（render_shot：图生视频，注入关键帧 + 上一镜尾帧）
+  → 一致性校验（continuity_check）
+       ├─ 不通过 → 重生成该镜（禁止入合成队列）
+       └─ 通过 → 下一镜 / 全部通过
+  → 音频轨（tts_dialogue / BGM / 音效 / 字幕，可与渲染并行）
+  → 时间轴合成（compose_timeline，视频 + 音频 + 字幕）
+  → [HITL] 成片审片 → 成片落盘 + 元数据回写</code></pre>
+      <p class="diagram-note">
+        实现时建议用 LangGraph 视频子图或异步 Job Worker；不得再假装「一步 LLM 回复 = 成片」。
+        <strong>关键帧先行</strong>是业界共识（见 §1.1）：构图/光照/人物姿态在便宜的图像层锁定并可人工确认，
+        视频模型只负责运动与时序，能大幅降低漂移与返工成本。
+      </p>
+      <h3>状态机（镜头级）</h3>
+      <table>
+        <thead><tr><th>状态</th><th>含义</th><th>允许迁移</th></tr></thead>
+        <tbody>
+          <tr><td><code>draft</code></td><td>分镜已写入，未校验实体</td><td>→ <code>validated</code> / <code>rejected</code></td></tr>
+          <tr><td><code>validated</code></td><td>character/scene/prop ID 齐全且存在于 bible</td><td>→ <code>keyframing</code>（或直出 <code>rendering</code>，配置项）</td></tr>
+          <tr><td><code>keyframing</code></td><td>关键帧生成中（图像模型）</td><td>→ <code>keyframe_ready</code> / <code>failed</code></td></tr>
+          <tr><td><code>keyframe_ready</code></td><td>关键帧已出，视 HITL 配置等待确认</td><td>→ <code>rendering</code> / <code>awaiting_review</code></td></tr>
+          <tr><td><code>awaiting_review</code></td><td>等待人工确认（关键帧或 QA 超限）</td><td>→ <code>rendering</code>（通过/修改后）/ <code>rejected</code></td></tr>
+          <tr><td><code>rendering</code></td><td>切片生成中</td><td>→ <code>rendered</code> / <code>failed</code></td></tr>
+          <tr><td><code>rendered</code></td><td>切片已落盘，待 QA</td><td>→ <code>qa_passed</code> / <code>qa_failed</code></td></tr>
+          <tr><td><code>qa_failed</code></td><td>一致性未过</td><td>→ <code>rendering</code>（重试，限次）或 <code>awaiting_review</code></td></tr>
+          <tr><td><code>qa_passed</code></td><td>可入合成时间轴</td><td>→ <code>composed</code>（随 Job）</td></tr>
+          <tr><td><code>failed</code></td><td>生成硬失败</td><td>→ <code>keyframing</code> / <code>rendering</code> 或终止</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-data">
+      <h2>3. 数据模型（设计稿）</h2>
+      <p>复用现有 <code>project_id</code> 命名空间；表名与字段为设计约定，实现时落 PG（真相源），大文件走对象存储/本地目录。</p>
+      <h3>3.1 项目与圣经</h3>
+      <table>
+        <thead><tr><th>实体</th><th>关键字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>video_projects</code></td>
+            <td><code>project_id</code>、<code>title</code>、<code>description</code>、<code>target_duration_sec</code>、<code>aspect_ratio</code>、<code>resolution</code>、<code>fps</code>、<code>style_bible</code>、<code>budget_limit_usd</code>、<code>status</code></td>
+            <td>可与业务 project 一对一。<code>description</code> 为选填项目说明（≤500 字，前端 ProjectSummaryCard 展示）；<code>style_bible</code> 为全局风格段落（画风/色调/负面词），<strong>逐镜逐帧原文注入</strong>防跨镜风格漂移；画幅/分辨率/帧率为项目级约束，所有镜头继承</td>
+          </tr>
+          <tr>
+            <td><code>character_bible</code></td>
+            <td><code>character_id</code>、<code>name</code>、<code>appearance</code>、<code>costume</code>、<code>age_band</code>、<code>ref_image_urls[]</code>、<code>voice_id?</code>、<code>lock_version</code></td>
+            <td>角色外观锁定；生成前强制注入。<code>ref_image_urls</code> 可由「角色定妆」流程生成（图像模型 + 人工挑选，V2 交付物）；<code>voice_id</code> 供 V8 TTS 音色一致</td>
+          </tr>
+          <tr>
+            <td><code>scene_lock</code></td>
+            <td><code>scene_id</code>、<code>name</code>、<code>setting</code>、<code>lighting</code>、<code>ref_image_urls[]</code></td>
+            <td>场景布景/光照锁定</td>
+          </tr>
+          <tr>
+            <td><code>prop_inventory</code></td>
+            <td><code>prop_id</code>、<code>name</code>、<code>description</code>、<code>ref_image_urls[]</code></td>
+            <td>跨镜道具不得消失/换样</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>3.2 分镜与资产</h3>
+      <table>
+        <thead><tr><th>实体</th><th>关键字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>shots</code></td>
+            <td><code>shot_id</code>、<code>shot_no</code>、<code>duration_sec</code>、<code>shot_size</code>、<code>camera</code>、<code>action</code>、<code>dialogue</code>、<code>character_ids[]</code>、<code>scene_id</code>、<code>prop_ids[]</code>、<code>keyframe_uri</code>、<code>transition</code>、<code>status</code></td>
+            <td>机器可读分镜；状态见上表。<code>keyframe_uri</code> 为已确认关键帧；<code>transition</code> 为与下一镜的转场（cut/dissolve 等），场景跳变时必填</td>
+          </tr>
+          <tr>
+            <td><code>shot_assets</code></td>
+            <td><code>shot_id</code>、<code>asset_type</code>(keyframe/clip)、<code>clip_uri</code>、<code>last_frame_uri</code>、<code>provider</code>、<code>gen_params</code>、<code>attempt</code>、<code>take_no</code>、<code>selected</code>、<code>cost</code></td>
+            <td>关键帧/切片与尾帧。<code>take_no</code> 支持同镜多候选选优（业界常见 2–4 takes）；<code>selected</code> 标记入选；<code>cost</code> 记录该次生成费用（视频按秒计费，须可核算）</td>
+          </tr>
+          <tr>
+            <td><code>compose_jobs</code></td>
+            <td><code>job_id</code>、<code>project_id</code>、<code>timeline</code>、<code>audio_tracks</code>、<code>subtitle_uri</code>、<code>output_uri</code>、<code>status</code></td>
+            <td>仅纳入 <code>qa_passed</code> 镜头；音轨与字幕见 3.4</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>3.4 音频与字幕（V8 · 成片标配）</h3>
+      <p>
+        市面成熟工具（Veo 原生音频、LTX lip-sync、mStudio 音频混轨）均把音频视为成片必备；
+        本设计将其独立为 V8 阶段，数据先行预留：
+      </p>
+      <table>
+        <thead><tr><th>实体</th><th>关键字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>audio_assets</code></td>
+            <td><code>audio_id</code>、<code>shot_id?</code>、<code>track_type</code>(dialogue/bgm/sfx)、<code>uri</code>、<code>duration_sec</code>、<code>voice_id?</code>、<code>source</code>(tts/library/upload)</td>
+            <td>对白经 <code>tts_dialogue</code> 生成并绑定 shot；BGM 可跨镜；音效对应 shot.sfx</td>
+          </tr>
+          <tr>
+            <td>字幕</td>
+            <td><code>compose_jobs.subtitle_uri</code>（SRT/ASS）</td>
+            <td>由 shots.dialogue + 音频时长自动生成；合成时可烧录或外挂</td>
+          </tr>
+          <tr>
+            <td>角色声音</td>
+            <td><code>character_bible.voice_id</code></td>
+            <td>与外观同级的一致性资产：同一角色全片同一音色</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>3.3 Shot JSON Schema（摘要）</h3>
+      <pre><code>{
+  "shot_no": "1",
+  "duration_sec": 3,
+  "shot_size": "中景",
+  "camera": "固定",
+  "action": "主角推开山门，云雾涌入",
+  "dialogue": "",
+  "sfx": "风声",
+  "character_ids": ["char_zhangsan"],
+  "scene_id": "scene_qingyun_gate",
+  "prop_ids": ["prop_old_sword"]
+}</code></pre>
+      <p>storyboard Skill 目标输出：上述 JSON 数组（可附人类可读 Markdown）；<strong>入库以 JSON 为准</strong>。</p>
+    </section>
+
+    <section id="sec-graph">
+      <h2>4. LangGraph 视频子图（阶段 D1 · 已实现同步编排）</h2>
+      <p><strong>POST</strong> <code>/api/v1/video/projects/{project_id}/pipeline/run</code> 触发子图，按序调用既有 validate / render / qa / audio / compose 服务；遇 <code>awaiting_review</code> 暂停并返回 <code>paused</code>。</p>
+      <p><strong>阶段 D3</strong>：<code>POST .../pipeline/run/async</code> 创建 <code>video_pipeline_jobs</code> 记录；<code>GET /pipeline/jobs/{id}</code> 查 checkpoint；<code>POST .../resume</code> 断点续跑。</p>
+      <p><strong>阶段 D2 MCP</strong>：内置工具 <code>render_shot</code>、<code>continuity_check</code>、<code>compose_timeline</code>（<code>mcp.enabled: true</code> 后可用）。</p>
+      <pre><code>plan                  # 可选：director 文本/结构化策划
+  → storyboard_json   # LLM → Shot[]，写 shots(draft)
+  → validate_entities # 校验 bible ID；缺则 rejected / 提示补全
+  → review_gate       # HITL：分镜确认（video.review.storyboard 开关）
+  → render_keyframes  # 图像模型出每镜关键帧（便宜、可并行）
+  → review_gate       # HITL：关键帧确认（video.review.keyframe 开关）
+  → render_shots      # 图生视频：关键帧 + 上一镜尾帧 + bible/style
+  → continuity_check  # QA；失败回 render_shots（限次），超限 awaiting_review
+  → audio_pipeline    # V8：tts_dialogue / BGM / 字幕（可与渲染并行）
+  → compose           # compose_timeline（视频 + 音轨 + 字幕）
+  → persist_output    # 成片 URI + 成本汇总 + Job 结束</code></pre>
+      <p class="diagram-note">
+        长任务须支持<strong>断点续跑</strong>：Job 状态与每镜状态均落 PG，进程重启后从未完成镜头继续，
+        不重复计费已完成的生成。HITL 节点通过 Job 暂停 + API 确认恢复实现。
+      </p>
+      <h3>与现有 chat 图的关系</h3>
+      <table>
+        <thead><tr><th>路径</th><th>用途</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>POST /api/v1/chat</code> + <code>creation_type=video</code></td>
+            <td>策划讨论、改分镜文案、查设定</td>
+            <td><strong>保持</strong>现有文本链路；不直接产出成片</td>
+          </tr>
+          <tr>
+            <td>视频子图 / 异步 Worker</td>
+            <td>结构化分镜落地后的渲染与合成</td>
+            <td>长任务；SSE 可推 <code>status</code> / Job 进度事件</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>建议目录（实现时）：<code>app/video/</code>（模型、repository、pipeline）+ <code>app/graph/video_*</code> 或独立 worker；附录目录树届时同步 <a href="ARCHITECTURE.html#appendix">ARCHITECTURE appendix</a>。</p>
+    </section>
+
+    <section id="sec-continuity">
+      <h2>5. 一致性严控（长视频必选）</h2>
+      <blockquote>
+        长视频必须严控：人物形象、场景、动作、物品、行为跨镜一致，禁止张冠李戴。
+        <strong>QA 失败的镜头不得进入合成队列。</strong>
+      </blockquote>
+      <h3>5.1 生成前（强制注入）</h3>
+      <ol>
+        <li>项目级 <code>style_bible</code> 段落<strong>逐字前置</strong>到每次图像/视频生成 prompt（业界防画风漂移的第一手段）</li>
+        <li>本镜 <code>character_ids</code> / <code>scene_id</code> / <code>prop_ids</code> 对应的 bible 全文 + 参考图 URL（同一角色全片复用<strong>同一组</strong>参考图，不得每镜换图）</li>
+        <li>本镜已确认 <code>keyframe_uri</code> 作为图生视频首帧锚定</li>
+        <li>上一镜 <code>last_frame_uri</code>（若存在）作为连续性锚定</li>
+        <li><code>lock_version</code>：bible 变更后未重新校验的镜头不得渲染</li>
+      </ol>
+      <h3>5.2 生成后（QA）</h3>
+      <table>
+        <thead><tr><th>检查项</th><th>V1 规则版</th><th>后续增强</th></tr></thead>
+        <tbody>
+          <tr><td>实体齐全</td><td>ID 均存在于 bible</td><td>—</td></tr>
+          <tr><td>场景跳变</td><td>相邻镜 scene_id 变更须有 <code>transition</code> 标注</td><td>视觉场景分类</td></tr>
+          <tr><td>人物一致</td><td>同 character_id 不得换名/换装描述冲突</td><td>人脸/服装嵌入比对</td></tr>
+          <tr><td>道具连续</td><td>剧情未交代不得消失</td><td>目标检测 Stub</td></tr>
+          <tr><td>风格/色调</td><td>gen_params 中 style_bible 注入完整（规则可查）</td><td>相邻镜色彩直方图/风格嵌入比对；合成期统一调色</td></tr>
+          <tr><td>技术规格</td><td>切片分辨率/帧率/画幅与 video_projects 一致（ffprobe）</td><td>—</td></tr>
+          <tr><td>内容安全</td><td>Provider 拒绝（安全策略）视为 failed 并记录原因，不盲目重试</td><td>提示词自动改写建议</td></tr>
+        </tbody>
+      </table>
+      <h3>5.3 重试与成本策略</h3>
+      <ul>
+        <li>单镜默认最多 N 次（配置项，如 <code>video.qa.max_retries: 3</code>）</li>
+        <li>超限 → 镜头置 <code>awaiting_review</code>，Job 暂停，等待人工确认或修改分镜/bible</li>
+        <li>可选多候选：同镜并行 <code>video.render.takes</code>（默认 1）个候选，QA 选优入 <code>selected</code></li>
+        <li>项目累计成本达 <code>video_projects.budget_limit</code> → Job 暂停并告警，防止 QA 循环烧钱（视频按秒计费）</li>
+      </ul>
+    </section>
+
+    <section id="sec-mcp">
+      <h2>6. MCP / 内部服务契约（D2 已实现内置工具）</h2>
+      <p>工具可先以<strong>内部 Python 服务 + Stub</strong>实现，再替换为 MCP Server 或真实视频 API。契约名保持稳定。</p>
+      <table>
+        <thead><tr><th>工具</th><th>入参（摘要）</th><th>出参</th><th>阶段</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>render_keyframe</code></td>
+            <td><code>shot_id</code>、style_bible、bible 快照 + ref 图、gen_params</td>
+            <td><code>keyframe_uri</code></td>
+            <td>V3 Stub → V7 图像 Provider</td>
+          </tr>
+          <tr>
+            <td><code>render_shot</code></td>
+            <td><code>shot_id</code>、style_bible、bible 快照、<strong>参考输入列表</strong>（关键帧、ref 图组、上一镜尾帧）、gen_params</td>
+            <td><code>clip_uri</code>、<code>last_frame_uri</code>、<code>cost</code></td>
+            <td>V3 Stub → V7 真实 Provider</td>
+          </tr>
+          <tr>
+            <td><code>continuity_check</code></td>
+            <td>当前镜资产 + 上一镜 + bible + style</td>
+            <td><code>pass</code> / <code>fail</code> + reasons[]</td>
+            <td><span class="tag">V4 已实现（规则版）</span></td>
+          </tr>
+          <tr>
+            <td><code>tts_dialogue</code></td>
+            <td><code>shot_id</code>、dialogue 文本、<code>voice_id</code></td>
+            <td><code>audio_uri</code>、<code>duration_sec</code></td>
+            <td>V8（TTS Provider 或 MCP）</td>
+          </tr>
+          <tr>
+            <td><code>compose_timeline</code></td>
+            <td>有序 <code>qa_passed</code> clip_uri 列表、转场、音轨列表、字幕</td>
+            <td><code>output_uri</code></td>
+            <td>V5 Stub 已实现；V8 加音轨/字幕</td>
+          </tr>
+          <tr>
+            <td>素材 / ffprobe</td>
+            <td>路径或 URI</td>
+            <td>时长、分辨率、编码</td>
+            <td>与 <a href="ARCHITECTURE.html#sec-11">sec-11</a> 短视频 MCP 表对齐</td>
+          </tr>
+        </tbody>
+      </table>
+      <p><code>skills/director/tools.yaml</code>、<code>skills/storyboard/tools.yaml</code> 当前为 Phase 3 预留文档；生产线工具以本页契约为准，实现时回写 tools.yaml 与 <code>config/app.yaml</code> 的 <code>mcp</code> / <code>video</code> 段。</p>
+      <h3>6.1 Provider 能力矩阵（V7 选型约束）</h3>
+      <p>
+        <code>render_shot</code> 契约按<strong>参考输入列表</strong>设计（而非单参考图），因为各家能力差异大：
+        Sora 2 / Kling 3.0 收 1–2 张参考图；Veo 3.1 收图 + 视频片段且带原生音频；
+        Seedance 2.0 单次可收 9 图 + 3 视频 + 3 音频；Kling 另有原生多镜连贯模式（一次 Job 3–12 镜自动保持人物/光照）。
+        V7 实现适配器时须声明各 Provider 的 <code>max_ref_images</code> / <code>max_ref_videos</code> / <code>native_audio</code> / <code>multi_shot</code>
+        能力位（配置进 <code>app.yaml</code> video providers 段），编排层据此裁剪注入的参考输入或改走多镜模式。
+      </p>
+    </section>
+
+    <section id="sec-api">
+      <h2>7. API（V1–D3 已实现 · 其余为设计稿）</h2>
+      <p>前缀：<code>/api/v1/video</code>。与 <code>POST /api/v1/chat</code> 分工：chat 负责对话与文本迭代；下列 API 负责生产线状态与产物。</p>
+      <table>
+        <thead><tr><th>方法</th><th>路径</th><th>说明</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>POST</td><td><code>/api/v1/video/projects</code></td><td>创建视频项目（title、画幅、budget 等）</td><td><span class="tag">已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects</code></td><td>项目列表（卡片/切换器数据源）</td><td><span class="tag">已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/suggestions</code></td><td>聚合已有命名空间（含未建表的手输 id）</td><td><span class="tag">已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}</code></td><td>项目详情（含 style_bible）</td><td><span class="tag">已实现</span></td></tr>
+          <tr><td>PATCH</td><td><code>/api/v1/video/projects/{project_id}</code></td><td>更新 style_bible 等字段</td><td><span class="tag">已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/storyboard</code></td><td>提交 Shot JSON 数组（入库 <code>draft</code>，默认同 project 全量替换）</td><td><span class="tag">V1 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/shots</code></td><td>按 project 列出分镜（按镜号排序）</td><td><span class="tag">V1 已实现</span></td></tr>
+          <tr><td>PUT</td><td><code>/api/v1/video/projects/{project_id}/bible/characters</code></td><td>角色圣经 upsert（按 character_id）</td><td><span class="tag">V2 已实现</span></td></tr>
+          <tr><td>PUT</td><td><code>/api/v1/video/projects/{project_id}/bible/scenes</code></td><td>场景锁定 upsert（按 scene_id）</td><td><span class="tag">V2 已实现</span></td></tr>
+          <tr><td>PUT</td><td><code>/api/v1/video/projects/{project_id}/bible/props</code></td><td>道具清单 upsert（按 prop_id）</td><td><span class="tag">V2 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/bible</code></td><td>列出三类 bible 条目</td><td><span class="tag">V2 已实现</span></td></tr>
+          <tr><td>DELETE</td><td><code>/api/v1/video/projects/{project_id}/bible/characters/{character_id}</code></td><td>删除角色条目</td><td><span class="tag">V2 已实现</span></td></tr>
+          <tr><td>DELETE</td><td><code>/api/v1/video/projects/{project_id}/bible/scenes/{scene_id}</code></td><td>删除场景条目</td><td><span class="tag">V2 已实现</span></td></tr>
+          <tr><td>DELETE</td><td><code>/api/v1/video/projects/{project_id}/bible/props/{prop_id}</code></td><td>删除道具条目</td><td><span class="tag">V2 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/validate</code></td><td>实体校验：draft → validated / rejected</td><td><span class="tag">V2 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/audio</code></td><td>TTS 对白 Stub + 字幕 SRT（V8）</td><td><span class="tag">V8 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{id}/render</code></td><td>启动渲染 Job（关键帧 + 切片 Stub）</td><td><span class="tag">V3 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/shots/{shot_id}/review</code></td><td>HITL 确认/驳回（qa_overflow / keyframe / storyboard）</td><td><span class="tag">V6 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/pipeline</code></td><td>流水线进度、待审镜头列表</td><td><span class="tag">V6 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/pipeline/run</code></td><td>LangGraph 子图同步一键跑管线（D1）</td><td><span class="tag">D1 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/pipeline/run/async</code></td><td>创建异步 Job 并后台执行（D3）</td><td><span class="tag">D3 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/pipeline/jobs/{job_id}</code></td><td>查询 Job checkpoint 与运行结果</td><td><span class="tag">D3 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/pipeline/jobs/{job_id}/resume</code></td><td>从 checkpoint 断点续跑</td><td><span class="tag">D3 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/creative/plans/{id}/storyboard</code></td><td>已确认大纲一键生成分镜入库（G2）</td><td><span class="tag">G2 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{id}/compose</code></td><td>启动合成（仅 qa_passed；G3 可烧录字幕）</td><td><span class="tag">V5/G3 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/compose/jobs/{job_id}</code></td><td>查询合成 Job 与成片 URI</td><td><span class="tag">V5 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/jobs/{job_id}</code></td><td>查询 Job 进度与产物 URI</td><td><span class="tag">V3 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/files/video/{project_id}/{shot_id}/{filename}</code></td><td>打开/下载镜头资产（inline / attachment）</td><td><span class="tag">V3 已实现</span></td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/qa</code></td><td>连续性 QA：rendered → qa_passed / qa_failed</td><td><span class="tag">V4 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/cost</code></td><td>项目成本汇总与预算状态（V7）</td><td><span class="tag">V7 已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/conversations/{id}/messages/{mid}/artifact</code></td><td>浏览器打开小说 TXT（inline）</td><td><span class="tag">已实现</span></td></tr>
+          <tr><td>GET</td><td><code>/api/v1/conversations/{id}/messages/{mid}/artifact/download</code></td><td>下载小说 TXT（attachment）</td><td><span class="tag">已实现</span></td></tr>
+        </tbody>
+      </table>
+      <h3>7.1 V1 请求/响应契约（已实现）</h3>
+      <p><strong>POST storyboard</strong> 请求体：</p>
+      <pre><code>{
+  "shots": [
+    {
+      "shot_no": "1",
+      "duration_sec": 3,
+      "shot_size": "中景",
+      "camera": "固定",
+      "action": "主角推开山门",
+      "dialogue": "",
+      "sfx": "风声",
+      "character_ids": ["char_zhangsan"],
+      "scene_id": "scene_gate",
+      "prop_ids": ["prop_sword"],
+      "transition": ""
+    }
+  ]
+}</code></pre>
+      <p>响应含 <code>project_id</code>、<code>replaced_count</code>、<code>shots[]</code>（含服务端生成的 <code>shot_id</code> 与 <code>status=draft</code>）。</p>
+      <p>CLI：<code>poetry run python scripts/submit_storyboard.py --project demo --file shots.json</code></p>
+      <h3>7.2 V2 bible 与校验契约（已实现）</h3>
+      <p><strong>PUT bible/characters</strong> 请求体示例：</p>
+      <pre><code>{
+  "characters": [
+    {
+      "character_id": "char_zhangsan",
+      "name": "张三",
+      "appearance": "青衫少年",
+      "costume": "青云道袍",
+      "age_band": "青年",
+      "ref_image_urls": [],
+      "voice_id": ""
+    }
+  ]
+}</code></pre>
+      <p><strong>POST validate</strong>：扫描 project 下 <code>status=draft</code> 镜头，校验引用的 character/scene/prop ID 均存在于 bible；通过 → <code>validated</code>，缺失 → <code>rejected</code> 并在响应 <code>failures[]</code> 说明原因。</p>
+      <p><strong>media-web UI（已实现）</strong>：知识库页 <strong>Style Bible</strong> 子 Tab — 角色/场景/道具 CRUD、<code>style_bible</code> 编辑、手动校验、缺失 ID 时<strong>从分镜移除引用</strong>（不建占位条目）；删除 Bible 时可勾选同时从分镜移除；工作台「去补全 Bible」跳转该 Tab。CLI <code>upsert_bible.py</code> 保留为运维工具。</p>
+      <p>CLI（可选）：<code>poetry run python scripts/upsert_bible.py --project demo --kind characters --file scripts/fixtures/demo-bible.json</code>；
+      <code>poetry run python scripts/validate_storyboard.py --project demo</code></p>
+      <p>实现后须同步 <a href="index.html#sec-api">index.html API 表</a> 与 <a href="ARCHITECTURE.html#sec-15">ARCHITECTURE sec-15</a>。</p>
+      <h3>7.3 V3 渲染与资产契约（已实现 · Stub）</h3>
+      <p><strong>POST render</strong>：扫描 project 下 <code>status=validated</code> 镜头，同步写出关键帧 SVG Stub 与切片占位文件，登记 <code>shot_assets</code> 与 <code>video_render_jobs</code>。</p>
+      <pre><code>{
+  "job": {
+    "job_id": "a1b2...",
+    "project_id": "demo",
+    "status": "completed",
+    "total_shots": 2,
+    "finished_shots": 2
+  },
+  "assets": [
+    {
+      "asset_id": "...",
+      "shot_id": "...",
+      "asset_type": "keyframe",
+      "uri": "demo/shot_id/keyframe.svg",
+      "open_url": "/api/v1/files/video/demo/shot_id/keyframe.svg?disposition=inline",
+      "download_url": "/api/v1/files/video/demo/shot_id/keyframe.svg?disposition=attachment"
+    }
+  ]
+}</code></pre>
+      <p>落盘目录：<code>config/app.yaml</code> → <code>video.assets_dir</code>（默认 <code>data/video_assets</code>）。V7 接入真实 Provider 后 URI 形态不变，仅文件内容由 Stub 换为真实图像/视频。</p>
+      <h3>7.4 V4 连续性 QA 契约（已实现 · 规则版）</h3>
+      <p><strong>POST qa</strong>：扫描 <code>status=rendered</code> 镜头，按镜号顺序执行规则检查（实体齐全、关键帧已落盘、场景跳变须 transition、同场景道具不得无故消失）。通过 → <code>qa_passed</code>；失败 → <code>qa_failed</code>（<code>qa_attempts+1</code>）；达 <code>video.qa.max_retries</code> → <code>awaiting_review</code>。</p>
+      <pre><code>{
+  "project_id": "demo",
+  "passed_count": 1,
+  "failed_count": 1,
+  "awaiting_review_count": 0,
+  "failures": [
+    {
+      "shot_id": "...",
+      "shot_no": "2",
+      "status": "qa_failed",
+      "reasons": ["missing_transition: s1 -> s2"]
+    }
+  ]
+}</code></pre>
+      <p>CLI：<code>poetry run python scripts/run_continuity_qa.py --project demo</code>（须先 render）。失败镜头<strong>不得</strong>进入 V5 合成队列。</p>
+      <h3>7.5 V5 时间轴合成契约（已实现 · Stub）</h3>
+      <p><strong>POST compose</strong>：仅纳入 <code>status=qa_passed</code> 镜头，按镜号写出 <code>timeline.stub.json</code>（含 clip_uri、duration、transition），镜头置 <code>composed</code>。</p>
+      <pre><code>{
+  "job": {
+    "job_id": "...",
+    "project_id": "demo",
+    "status": "completed",
+    "total_shots": 2,
+    "output_uri": "demo/compose/timeline.stub.json"
+  },
+  "output": {
+    "uri": "demo/compose/timeline.stub.json",
+    "open_url": "/api/v1/files/video/demo/compose/timeline.stub.json?disposition=inline",
+    "download_url": "/api/v1/files/video/demo/compose/timeline.stub.json?disposition=attachment"
+  }
+}</code></pre>
+      <p>CLI：<code>poetry run python scripts/run_compose.py --project demo</code>（须先 QA 通过）。V7 后 Stub 换为 ffmpeg 真实 mp4；URI 与 API 形态保持不变。</p>
+      <h3>7.6 V6 HITL 与流水线契约（已实现）</h3>
+      <p><strong>POST review</strong> 请求体：</p>
+      <pre><code>{
+  "stage": "qa_overflow",
+  "action": "approve",
+  "comment": "人工确认可入合成"
+}</code></pre>
+      <p>阶段：<code>qa_overflow</code>（<code>awaiting_review</code> → approve 为 <code>qa_passed</code>）、<code>keyframe</code>（<code>rendered</code>）、<code>storyboard</code>（<code>draft</code>）。配置：<code>video.review.storyboard</code> / <code>video.review.keyframe</code>。</p>
+      <p><strong>GET pipeline</strong> 返回 <code>status_counts</code>、五步 <code>steps[]</code>、<code>awaiting_review[]</code>；media-web 右侧面板展示进度条与审核按钮。子图节点常量见 <code>app/graph/video_pipeline_constants.py</code>。</p>
+      <h3>7.7 V7 Provider、成本与预算契约（已实现）</h3>
+      <p><strong>配置</strong>：<code>video.providers.active</code> 选择关键帧/切片/合成实现；<code>video.providers.matrix</code> 声明能力位与 <code>cost_per_second</code>；<code>video.budget</code> 控制 <code>default_limit_usd</code> 与熔断开关。本地 ffmpeg 模式见 <code>FFMPEG_PATH</code>（可选，默认识别 PATH）。</p>
+      <p><strong>GET cost</strong>：<code>/api/v1/video/projects/{project_id}/cost</code> 返回累计 <code>total_cost_usd</code>、<code>budget_limit_usd</code>、<code>remaining_usd</code>、<code>active_providers</code>。</p>
+      <p><strong>POST render / compose</strong>：启动前按配置校验预算，超限返回 <code>409</code>，<code>detail.reason=budget_exceeded</code>。切片 <code>shot_assets.cost</code> 按 <code>duration_sec × cost_per_second</code> 记账。</p>
+      <p><strong>Provider 模式</strong>：<code>active.clip=local_ffmpeg</code> 且系统有 ffmpeg 时产出 <code>clip.mp4</code>；<code>active.compose=local_ffmpeg</code> 且全部 clip 为 mp4 时产出 <code>timeline.mp4</code>。无 ffmpeg 时 render/compose 返回 <code>503</code>（<code>FfmpegRequiredError</code>），不再 silent 回退 JSON Stub。</p>
+      <pre><code>{
+  "project_id": "demo",
+  "total_cost_usd": 0.15,
+  "budget_limit_usd": 100.0,
+  "remaining_usd": 99.85,
+  "budget_exceeded": false,
+  "asset_count": 4,
+  "active_providers": {
+    "keyframe": "stub",
+    "clip": "stub",
+    "compose": "stub_json"
+  }
+}</code></pre>
+      <h3>7.8 V8 音频与字幕契约（V8.5 增强）</h3>
+      <p><strong>POST audio</strong>：扫描 project 下含 <code>dialogue</code> 的镜头，按 <code>character_bible.voice_id</code> 写出对白 WAV，登记 <code>audio_assets</code>；并生成 <code>subtitles.srt</code> 供合成引用。</p>
+      <p><strong>TTS Provider</strong>：<code>video.audio.tts_provider</code> — <code>stub</code>（静音占位）或 <code>edge_tts</code>（Edge 在线语音，需 <code>edge-tts</code> 包与网络）。</p>
+      <p><strong>POST compose</strong>（V8.5）：<code>active.compose=local_ffmpeg</code> 且 <code>mux_audio=true</code> 时，将 <code>audio_tracks</code> 对白轨按镜头时间轴混入 <code>timeline.mp4</code>；时间轴 JSON 仍含 <code>subtitle_uri</code>。</p>
+      <p><strong>字幕烧录</strong>（G3）：<code>video.audio.compose.burn_subtitles=true</code> 且存在 <code>subtitles.srt</code> 时，合成后用 ffmpeg <code>subtitles</code> 滤镜烧录进 mp4；响应 <code>subtitles_burned</code> 供前端展示。</p>
+      <p>配置：<code>video.audio.tts_provider</code>、<code>video.audio.edge_tts.default_voice</code>、<code>video.audio.edge_tts.voice_map</code>；产物根目录 <code>video.assets_dir</code>。TTS 失败时降级 stub 静音并写 warning 日志。</p>
+      <h3>7.8.1 V8.6 BGM 导入与混轨（已实现）</h3>
+      <p><strong>POST audio/bgm</strong>：上传 mp3/wav/m4a/aac 作为全片 BGM，写入 <code>audio_assets</code>（<code>track_type=bgm</code>，<code>shot_id</code> 为空）；覆盖旧 BGM。</p>
+      <p><strong>GET audio/tracks</strong>：列出对白 / BGM / 音效登记；media-web <code>BgmUploadSection</code> 预览与管理。</p>
+      <p><strong>DELETE audio/bgm/{audio_id}</strong>：删除 BGM 登记与磁盘文件。</p>
+      <p><strong>compose 混轨</strong>：存在 BGM 且 <code>video.audio.bgm.default_volume</code> 配置时，在对白 <code>mux_audio</code> 之后用 ffmpeg <code>amix</code> 混入 BGM（音量可配，默认 0.25）。</p>
+      <p>配置：<code>video.audio.bgm.default_volume</code>（0–1）。SFX（<code>track_type=sfx</code>）表结构已预留，按 shot 绑定为后续项。</p>
+    </section>
+
+    <section id="sec-export-preview">
+      <h2>7.9 产物导出与 Web 预览（前后端分工）</h2>
+      <p>小说与视频产物的<strong>权威存储与访问控制在后端</strong>；media-web 只负责展示按钮与链接，不自行拼装文件内容。</p>
+      <table>
+        <thead><tr><th>场景</th><th>后端职责</th><th>前端职责</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>小说 TXT</strong></td>
+            <td><code>save_messages</code> 后将助手正文写入 <code>artifacts.novel_dir</code>；提供 <code>GET .../artifact</code>（inline 打开）与 <code>.../artifact/download</code>（attachment 下载）</td>
+            <td>助手气泡展示「打开 TXT」「下载 TXT」；<code>message_end</code> 用 <code>message_ids</code> 将临时 id 换为 PG 自增 id</td>
+            <td>刷新页面后仍可访问；路径见 <code>app/core/artifact_constants.py</code></td>
+          </tr>
+          <tr>
+            <td><strong>视频关键帧 / 切片</strong></td>
+            <td>V3 Stub 落盘 + <code>shot_assets</code> 登记；<code>GET /files/video/...</code> 按 <code>disposition</code> 返回文件</td>
+            <td>视频模式侧栏/面板：<code>&lt;img&gt;</code> 预览 SVG 关键帧；mp4 切片/成片用 <code>&lt;video&gt;</code>（V7 local_ffmpeg）</td>
+            <td>渲染 Job 由 <code>POST .../render</code> 触发；需先 V2 validate</td>
+          </tr>
+          <tr>
+            <td><strong>成片预览</strong></td>
+            <td>V5 compose 产出 URI + files API</td>
+            <td>media-web 成片 mp4 预览/下载；Stub 时侧栏提示改 app.yaml</td>
+            <td><span class="tag">V5/V7 已实现</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>配置：<code>artifacts.novel_dir</code>、<code>video.assets_dir</code> 见 <code>config/app.yaml</code> 与 <a href="ARCHITECTURE.html#sec-15-export">ARCHITECTURE §15.4</a>。</p>
+
+    <section id="sec-phases">
+      <h2>8. 分阶段验收标准</h2>
+      <table>
+        <thead><tr><th>阶段</th><th>目标</th><th>验收</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>V0</strong></td>
+            <td>文本策划 / 分镜</td>
+            <td><code>creation_type=video</code> 可出导演方案与 Markdown 分镜表</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V1</strong></td>
+            <td>结构化分镜入库</td>
+            <td>Shot JSON Schema + PG shots + 提交 API/CLI；可按 project 列出分镜</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V2</strong></td>
+            <td>bible + 校验</td>
+            <td>角色/场景/道具 CRUD；缺 ID 不得渲染</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V3</strong></td>
+            <td>关键帧 + 单镜 Stub 渲染</td>
+            <td><code>render_keyframe</code> / <code>render_shot</code> 写出占位帧 + clip + last_frame；Job 状态可查</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V4</strong></td>
+            <td>连续性 QA</td>
+            <td>规则 QA；失败不入合成；可配置重试</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V5</strong></td>
+            <td>合成</td>
+            <td><code>compose_timeline</code> 产出 timeline Stub + 成片 URI</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V6</strong></td>
+            <td>编排与前端（含 HITL）</td>
+            <td>视频子图常量 + review/pipeline API；media-web 进度与 HITL 审核</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V7</strong></td>
+            <td>真实 Provider + 成本控制</td>
+            <td>图像/视频 Provider 替换 Stub（含能力矩阵配置）；<code>cost</code> 记账 + <code>budget_limit</code> 熔断；local_ffmpeg mp4；配置写入 <code>app.yaml</code> / <code>.env.example</code></td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V8</strong></td>
+            <td>音频与字幕</td>
+            <td><code>tts_dialogue</code> Stub + <code>audio_assets</code> + SRT 字幕；compose 时间轴含音轨</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V8.5</strong></td>
+            <td>真实 TTS + 音画混轨</td>
+            <td><code>edge_tts</code> Provider、ffmpeg <code>mux_audio</code></td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V8.6</strong></td>
+            <td>BGM 导入与混轨</td>
+            <td>POST/GET/DELETE audio/bgm + ffmpeg BGM mix；media-web BGM 上传区</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td><strong>V9</strong></td>
+            <td>工程质量（阶段 C）</td>
+            <td>Alembic、<code>test_chat</code> SSE 契约、<code>run_video_demo.py</code></td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-todos">
+      <h2>9. 开发待办（Phase E · Polish）</h2>
+      <p>V1–V9、G1–G3、D1–D3 已完成；下列为<strong>补全与打磨</strong>队列。进度见 <a href="DEVELOPMENT_LOG.html#sec-roadmap">DEVELOPMENT_LOG · roadmap</a>。</p>
+      <table>
+        <thead><tr><th>ID</th><th>任务</th><th>产出物（预期）</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>E1</td>
+            <td>前端异步管线 UI：默认 <code>run/async</code>、Job 轮询、暂停续跑</td>
+            <td><code>media-web</code>：<code>useVideoPipelineJob</code>、VideoShotPanel Job 状态行</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td>E2</td>
+            <td>Alembic <code>video_pipeline_jobs</code> 增量 revision + async API 测试</td>
+            <td><code>alembic/versions/a1b2c3d4e5f6_*.py</code>、<code>tests/test_video_pipeline_async_api.py</code></td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td>E3</td>
+            <td>文档对齐（本页、index、ARCHITECTURE sec-16）</td>
+            <td>状态标注与 API 表一致</td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td>E4</td>
+            <td>E2E：<code>run_video_demo.py</code> 覆盖 G2→D1→G3</td>
+            <td><code>--demo-mode pipeline</code>、<code>--pipeline-mode sync|async</code></td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+          <tr>
+            <td>E5</td>
+            <td>全量验收：<code>pytest</code> + <code>pnpm build</code> + 演示清单</td>
+            <td>DEVELOPMENT_LOG 步骤 58、<a href="DEVELOPMENT_LOG.html#sec-e5-demo-checklist">演示清单</a></td>
+            <td><span class="tag">已完成</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p><strong>不在 Phase E</strong>：真实图生视频 Provider、按 shot SFX 混轨、MCP 接入 Chat 主图、生产级 Worker 队列。</p>
+    </section>
+
+    <footer>
+      <p>蓝魔 · 视频生产线架构 · 2026-07-10</p>
+      <p>
+        <a href="index.html">项目入门</a> ·
+        <a href="ARCHITECTURE.html">架构设计</a> ·
+        <a href="ARCHITECTURE.html#sec-10-4">sec-10.4 Skill</a> ·
+        <a href="ARCHITECTURE.html#sec-16">sec-16 路线图</a> ·
+        <a href="DEVELOPMENT_LOG.html">开发进度</a>
+      </p>
+      <p>规则：<code>.cursor/rules/doc-sync.mdc</code> · <code>docs-html-only.mdc</code></p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

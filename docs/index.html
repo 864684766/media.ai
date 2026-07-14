@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lanmo 项目入门</title>
+  <link rel="stylesheet" href="css/doc-base.css">
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <h2>文档导航</h2>
+    <ul>
+      <li><a href="index.html" class="active">项目入门</a></li>
+      <li><a href="ARCHITECTURE.html">架构设计</a></li>
+      <li><a href="VIDEO_PIPELINE.html">视频生产线</a></li>
+      <li><a href="DEVELOPMENT_LOG.html">开发进度日志</a></li>
+    </ul>
+  </nav>
+  <main>
+    <header class="doc-header">
+      <h1>lanmo 项目入门</h1>
+      <p class="meta">
+        <span class="tag">FastAPI + Poetry</span>
+        &nbsp;·&nbsp; 更新日期：2026-07-13
+      </p>
+      <p style="margin-top:0.75rem;color:var(--muted);font-size:0.9rem;">
+        用浏览器阅读文档：<code>docs/index.html</code>（本页）、<code>docs/ARCHITECTURE.html</code>、<code>docs/VIDEO_PIPELINE.html</code>、<code>docs/DEVELOPMENT_LOG.html</code>
+      </p>
+    </header>
+
+    <section id="sec-requirements">
+      <h2>环境要求</h2>
+      <ul>
+        <li>Python &gt;= 3.10</li>
+        <li>Poetry &gt;= 2.0</li>
+      </ul>
+    </section>
+
+    <section id="sec-real-av">
+      <h2>真实音视频生产（Stub → mp4 + TTS）</h2>
+      <p>默认 <code>config/app.yaml</code> 已启用 <strong>local_ffmpeg + edge_tts</strong>；产出真实 mp4 与可听对白需满足下列前置（<strong>不含图生视频</strong>，clip 为 ffmpeg 色块占位 mp4）。若需 Stub 演示，将 <code>active.clip/compose</code> 改回 stub、<code>tts_provider: stub</code>。</p>
+      <table>
+        <thead><tr><th>依赖</th><th>用途</th><th>检查</th></tr></thead>
+        <tbody>
+          <tr><td><strong>ffmpeg</strong></td><td>clip.mp4 渲染、timeline 拼接、音画混轨、字幕烧录</td><td><code>ffmpeg -version</code> 或设置 <code>FFMPEG_PATH</code>（见 <code>.env.example</code>）</td></tr>
+          <tr><td><strong>edge-tts</strong></td><td>在线 TTS 对白（<code>video.audio.tts_provider=edge_tts</code>）</td><td><code>poetry install</code> 已含；需可访问外网</td></tr>
+          <tr><td>PostgreSQL</td><td>分镜 / 音频资产 / compose Job</td><td><code>DATABASE_URL</code> + <code>alembic upgrade head</code></td></tr>
+        </tbody>
+      </table>
+      <p><code>config/app.yaml</code> 真实音视频 preset：</p>
+      <pre><code>video:
+  providers:
+    active:
+      clip: local_ffmpeg
+      compose: local_ffmpeg
+  audio:
+    tts_provider: edge_tts
+    compose:
+      mux_audio: true
+      burn_subtitles: true</code></pre>
+      <p>E2E 验收：<code>poetry run python scripts/run_video_demo.py --av-mode real</code>（断言 <code>timeline.mp4</code> 与非 Stub TTS）。详见 <a href="VIDEO_PIPELINE.html#sec-v85">VIDEO_PIPELINE §7.5</a>。</p>
+    </section>
+
+    <section id="sec-install">
+      <h2>安装</h2>
+      <pre><code># 创建虚拟环境并安装依赖
+poetry install
+
+# 复制环境变量文件
+cp .env.example .env</code></pre>
+    </section>
+
+    <section id="sec-local-dev">
+      <h2>双服务本地联调（media.ai + 巧克力）</h2>
+      <p>Compose 仅起共享数据面；应用在宿主机各跑各的进程。<strong>不使用</strong> Traefik / Celery / Redis。权威拓扑见 <a href="ARCHITECTURE.html#sec-13-2">ARCHITECTURE 13.2</a>。</p>
+      <table>
+        <thead><tr><th>组件</th><th>端口</th><th>启动</th></tr></thead>
+        <tbody>
+          <tr><td>PostgreSQL + Neo4j</td><td>5432 / 7687</td><td><code>cd E:\test\deploy &amp;&amp; docker compose up -d</code></td></tr>
+          <tr><td>media.ai（只读 + Chat）</td><td>8000</td><td><code>poetry run python -m app.run</code></td></tr>
+          <tr><td>巧克力 chocolate（写库）</td><td>8001</td><td><code>poetry run uvicorn main:app --port 8001</code></td></tr>
+          <tr><td>media-web</td><td>5173</td><td><code>pnpm dev</code>（media-web 目录）</td></tr>
+          <tr><td>chocolate-web</td><td>5174</td><td><code>pnpm dev</code>（chocolate-web 目录）</td></tr>
+        </tbody>
+      </table>
+      <p>写库边界：<strong>仅巧克力</strong>通过 <code>/feed/v1/jobs</code> 写入；media.ai 知识库 API 只读。验收：巧克力上传 <code>project_id=demo</code> → media-web 同 project 对话带 citation。</p>
+    </section>
+
+    <section id="sec-run">
+      <h2>运行</h2>
+      <pre><code># 推荐：启动开发服务器（带热重载）
+poetry run python -m app.run
+
+# 或使用 uvicorn 直接启动
+poetry run uvicorn app.application:app --reload --host 0.0.0.0 --port 8000
+
+# 或使用命令行脚本
+poetry run lanmo</code></pre>
+      <p>启动后访问：</p>
+      <ul>
+        <li>API 文档：<a href="http://localhost:8000/docs">http://localhost:8000/docs</a></li>
+        <li>ReDoc：<a href="http://localhost:8000/redoc">http://localhost:8000/redoc</a></li>
+      </ul>
+    </section>
+
+    <section id="sec-entry">
+      <h2>入口文件说明</h2>
+      <table>
+        <thead><tr><th>文件</th><th>职责</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/application.py</code></td><td>定义 FastAPI 应用对象 <code>app</code>，供 uvicorn 加载</td></tr>
+          <tr><td><code>app/run.py</code></td><td>启动 uvicorn 服务器，日常开发从这里运行</td></tr>
+        </tbody>
+      </table>
+      <h3>PyCharm 运行配置</h3>
+      <ol>
+        <li><strong>解释器</strong>：Settings → Project → Python Interpreter → 选择 <code>.venv\Scripts\python.exe</code></li>
+        <li><strong>运行配置</strong>：Script path 选 <code>app/run.py</code>；Working directory 为项目根（含 <code>pyproject.toml</code>）</li>
+        <li>修改代码后先 Stop 再 Run；接口未更新时 Ctrl+F5 刷新 <code>/docs</code></li>
+      </ol>
+    </section>
+
+    <section id="sec-structure">
+      <h2>项目结构</h2>
+      <p>完整目录与 Phase 标注见 <a href="ARCHITECTURE.html#appendix">架构文档附录</a>。</p>
+      <pre><code>lanmo/
+├── app/              # Python 应用代码
+├── skills/           # Skill 人设内容（SKILL.md，非 Python 包）
+├── config/app.yaml   # Agent 运维配置
+├── docs/             # HTML 文档（本目录）
+├── tests/
+└── pyproject.toml</code></pre>
+    </section>
+
+    <section id="sec-media-web">
+      <h2>前端 media-web</h2>
+      <p>独立仓库目录 <code>media-web/</code>（Vite + React + Tailwind）。UI 交互<strong>一律使用 shadcn/ui 封装</strong>（<code>src/components/ui/</code>），禁止 <code>window.prompt/alert/confirm</code> 与业务层裸 <code>button/input/select</code>。规范见 <code>.cursor/rules/frontend-shadcn-ui.mdc</code>。</p>
+      <pre><code>cd media-web
+pnpm install
+pnpm dev    # 默认 http://localhost:5173
+pnpm run build</code></pre>
+    </section>
+
+    <section id="sec-chocolate-web">
+      <h2>前端 chocolate-web</h2>
+      <p>独立仓库 <code>chocolate-web/</code>，对接巧克力 <code>/feed/v1</code>。详见该目录 <code>README.md</code>。</p>
+      <pre><code>cd chocolate-web
+pnpm install
+pnpm dev    # 默认 http://localhost:5174</code></pre>
+    </section>
+
+    <section id="sec-docs">
+      <h2>文档索引</h2>
+      <table>
+        <thead><tr><th>文档</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><a href="index.html">index.html</a></td><td>本页：安装、运行、入口</td></tr>
+          <tr><td><a href="ARCHITECTURE.html">ARCHITECTURE.html</a></td><td>架构、流程图、API 契约（权威）</td></tr>
+          <tr><td><a href="VIDEO_PIPELINE.html">VIDEO_PIPELINE.html</a></td><td>视频生产线设计稿与 Phase V 待办（权威）</td></tr>
+          <tr><td><a href="DEVELOPMENT_LOG.html">DEVELOPMENT_LOG.html</a></td><td>开发步骤摘要、术语速查</td></tr>
+        </tbody>
+      </table>
+      <blockquote>
+        <strong>文档格式约定：</strong>项目文档一律 HTML，见 <code>.cursor/rules/docs-html-only.mdc</code>。
+        Skill 资产仍使用 <code>SKILL.md</code>（Agent Skills 标准，不算项目文档）。
+      </blockquote>
+    </section>
+
+    <section id="sec-api">
+      <h2>API 接口（当前）</h2>
+      <table>
+        <thead><tr><th>方法</th><th>路径</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>POST</td><td><code>/api/v1/chat</code></td><td>SSE 流式对话：Skill 注入 + 多轮历史 + 混合检索（citation 事件）+ Provider token 级流式 + PG 可选持久化；含澄清/大纲 SSE 事件</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/creative/plans</code></td><td>根据澄清摘要生成创作大纲 v1（阶段 E）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/creative/plans/{plan_id}</code></td><td>查询大纲详情</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/creative/plans?conversation_id=</code></td><td>会话下最新大纲</td></tr>
+          <tr><td>PATCH</td><td><code>/api/v1/creative/plans/{plan_id}</code></td><td>用户手工编辑 content_md</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/creative/plans/{plan_id}/revise</code></td><td>带 comment 让 AI 改稿</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/creative/plans/{plan_id}/approve</code></td><td>确认大纲并锁定</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/creative/plans/{plan_id}/storyboard</code></td><td>已确认视频大纲 → 按方案生成分镜并入库（阶段 G2）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/conversations</code></td><td>会话列表（id、preview、updated_at），供 media-web 左侧栏</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/conversations/{id}/messages</code></td><td>会话历史消息（受 retention_days 过滤）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/skills</code></td><td>Skill 元数据列表（id、display_name、triggers）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/knowledge/documents</code></td><td>知识库文档列表（project_id 过滤、chunk 数量、预览）</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/knowledge/documents</code></td><td>JSON 粘贴文本导入 → 切分写 PG</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/knowledge/documents/upload</code></td><td>multipart 上传 txt/md/pdf/docx</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/knowledge/documents/{document_id}</code></td><td>文档详情</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/knowledge/documents/{document_id}/chunks</code></td><td>文档 chunk 分页列表</td></tr>
+          <tr><td>DELETE</td><td><code>/api/v1/knowledge/documents/{document_id}</code></td><td>删除文档及 chunks</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/storyboard</code></td><td>提交结构化分镜 Shot JSON 数组入库（status=draft）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/shots</code></td><td>按 project 列出分镜（镜号排序）</td></tr>
+          <tr><td>PUT</td><td><code>/api/v1/video/projects/{project_id}/bible/characters</code></td><td>角色圣经 upsert</td></tr>
+          <tr><td>DELETE</td><td><code>/api/v1/video/projects/{project_id}/bible/characters/{character_id}</code></td><td>删除角色圣经条目</td></tr>
+          <tr><td>PUT</td><td><code>/api/v1/video/projects/{project_id}/bible/scenes</code></td><td>场景锁定 upsert</td></tr>
+          <tr><td>DELETE</td><td><code>/api/v1/video/projects/{project_id}/bible/scenes/{scene_id}</code></td><td>删除场景条目</td></tr>
+          <tr><td>PUT</td><td><code>/api/v1/video/projects/{project_id}/bible/props</code></td><td>道具清单 upsert</td></tr>
+          <tr><td>DELETE</td><td><code>/api/v1/video/projects/{project_id}/bible/props/{prop_id}</code></td><td>删除道具条目</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/bible</code></td><td>列出三类 bible 条目</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/bible/strip-shot-refs</code></td><td>从分镜移除指定 character/scene/prop 引用（不建占位）</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/validate</code></td><td>校验 draft 镜头实体引用 → validated/rejected</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/render</code></td><td>启动渲染 Job（关键帧 + 切片；local_ffmpeg 产出 clip.mp4）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/jobs/{job_id}</code></td><td>查询渲染 Job 状态</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/files/video/{project_id}/{shot_id}/{filename}</code></td><td>打开/下载镜头资产</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/conversations/{id}/messages/{mid}/artifact</code></td><td>浏览器打开小说 TXT</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/conversations/{id}/messages/{mid}/artifact/download</code></td><td>下载小说 TXT</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/qa</code></td><td>连续性 QA（规则版）</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/compose</code></td><td>时间轴合成（local_ffmpeg → timeline.mp4；无 ffmpeg 时 503）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/pipeline</code></td><td>流水线进度与待审镜头</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/pipeline/run</code></td><td>LangGraph 视频子图一键跑管线（阶段 D1）</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/pipeline/run/async</code></td><td>异步管线 Job（阶段 D3）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/pipeline/jobs/{job_id}</code></td><td>查询管线 Job checkpoint</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/pipeline/jobs/{job_id}/resume</code></td><td>断点续跑管线 Job</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/shots/{shot_id}/review</code></td><td>HITL 审核（approve/reject）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}</code></td><td>视频项目详情（含 style_bible）</td></tr>
+          <tr><td>PATCH</td><td><code>/api/v1/video/projects/{project_id}</code></td><td>更新项目 style_bible 等字段</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects</code></td><td>视频项目列表</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects</code></td><td>创建视频项目（title、description 选填、画幅、budget 等）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/suggestions</code></td><td>项目命名空间建议</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/audio</code></td><td>对白 TTS（edge_tts / stub）+ 字幕 SRT（V8）</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/audio/tracks</code></td><td>列出对白 / BGM / 音效轨（V8.6）</td></tr>
+          <tr><td>POST</td><td><code>/api/v1/video/projects/{project_id}/audio/bgm</code></td><td>上传项目 BGM（mp3/wav，覆盖旧 BGM）</td></tr>
+          <tr><td>DELETE</td><td><code>/api/v1/video/projects/{project_id}/audio/bgm/{audio_id}</code></td><td>删除 BGM 登记与文件</td></tr>
+          <tr><td>GET</td><td><code>/api/v1/video/projects/{project_id}/cost</code></td><td>项目成本与预算（V7）</td></tr>
+        </tbody>
+      </table>
+      <p>路由自动扫描：<code>app/api/router_loader.py</code>；新增模块只需在 <code>app/api/</code> 下建文件并定义 <code>router</code>。</p>
+      <h3>POST 快速体验</h3>
+      <pre><code># 首轮对话（服务端自动生成 conversation_id，在 message_start 事件返回）
+curl -N -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "帮我写一段玄幻小说开头", "skill_id": "novel-writing"}'</code></pre>
+      <h3>体验 RAG 检索（citation 事件）</h3>
+      <pre><code># 1. 先灌入示例小说数据（PG 必需；配置 NEO4J_URI 时同步写图谱）
+poetry run python scripts/seed_novel.py --write
+
+# 2. 问一个「设定类」问题，路由命中 needs_project 触发检索
+curl -N -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "查一下主角的师父是谁", "project_id": "demo"}'
+# SSE 输出中会先收到 citation 事件（chunk_id / source / 摘录），再收到正文 delta</code></pre>
+      <h3>数据库迁移（Alembic · 阶段 C）</h3>
+      <pre><code># 推荐：增量迁移（需 DATABASE_URL）
+poetry run alembic upgrade head
+# 或
+poetry run python scripts/run_alembic_upgrade.py
+
+# 快捷建表（测试/本地，等价于 ORM create_all）
+poetry run python scripts/init_postgres_tables.py
+
+# 仅缺 clarification_sessions 时（无法 alembic 时手动执行）
+# psql $DATABASE_URL -f scripts/sql/add_clarification_sessions.sql</code></pre>
+      <h3>视频生产线 E2E 演示（阶段 C）</h3>
+      <pre><code># 真实音视频 E2E（需 ffmpeg + edge-tts 网络）
+poetry run python scripts/run_video_demo.py --av-mode real</code></pre>
+      <h3>结构化分镜（V1）</h3>
+      <pre><code># 1. 建表（推荐 Alembic，或快捷 init_postgres_tables）
+poetry run python scripts/run_alembic_upgrade.py
+
+# 2. 提交示例分镜 JSON
+poetry run python scripts/submit_storyboard.py --project demo --file scripts/fixtures/demo-storyboard.json
+
+# 3. 查询
+curl http://localhost:8000/api/v1/video/projects/demo/shots
+
+# 4. V2：灌 bible 并校验
+poetry run python scripts/upsert_bible.py --project demo --kind all --file scripts/fixtures/demo-bible.json
+poetry run python scripts/validate_storyboard.py --project demo</code></pre>
+    </section>
+
+    <section id="sec-maintain">
+      <h2>文档维护约定</h2>
+      <p><strong>先文档、后代码</strong>（<code>.cursor/rules/doc-sync.mdc</code>）：</p>
+      <ol>
+        <li>写代码前：检索并完善相关 HTML 文档章节</li>
+        <li>写代码后：对照映射表同步；<code>pytest</code> 通过后再结束</li>
+      </ol>
+      <p>配置与注释规范：<code>.cursor/rules/code-comments-and-config.mdc</code></p>
+    </section>
+
+    <footer>
+      <p>lanmo 项目入门 · 2026-07-09</p>
+      <p><a href="ARCHITECTURE.html">架构设计</a> · <a href="VIDEO_PIPELINE.html">视频生产线</a> · <a href="DEVELOPMENT_LOG.html">开发进度</a></p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>

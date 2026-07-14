@@ -60,7 +60,7 @@ var BRANCH_A_COLOR = '#16a34a';
 /** @type {string} 分支 B 颜色（实时 Web） */
 var BRANCH_B_COLOR = '#ea580c';
 
-/** @type {string} 分支 C 颜色（跳过检索） */
+/** @type {string} 分支 C 颜色（仅创作，无检索/Web） */
 var BRANCH_C_COLOR = '#2563eb';
 
 /** @type {string} 兜底虚线颜色 */

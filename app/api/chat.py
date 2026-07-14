@@ -1,26 +1,35 @@
 """Chat 路由。
 
-提供 chat 接口，返回简单字符串应答。
+【职责】
+    POST 提供 SSE 流式 Chat 接口（创作工作台唯一对话入口）。
 """
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_chat_service
-from app.core.constants import CHAT_ROUTE_PREFIX
+from app.core.constants import CHAT_ROUTE_PREFIX, SSE_MEDIA_TYPE
+from app.schemas.chat import ChatRequest
 from app.services.chat import ChatService
 
 router = APIRouter(prefix=CHAT_ROUTE_PREFIX, tags=["chat"])
 
 
-@router.get("", response_class=PlainTextResponse, summary="Chat 应答")
-def chat(service: ChatService = Depends(get_chat_service)) -> str:
-    """Chat 端点，返回简单字符串。
+@router.post("", summary="Chat SSE 问答")
+def post_chat(
+    request: ChatRequest,
+    service: ChatService = Depends(get_chat_service),
+) -> StreamingResponse:
+    """Chat SSE 端点。
 
     参数:
-        service: 通过依赖注入获取的 ChatService 实例。
+        request: 用户本轮输入与可选会话参数。
+        service: ChatService 实例。
 
     返回:
-        str: 纯文本应答。
+        StreamingResponse: text/event-stream 事件流。
     """
-    return service.respond()
+    return StreamingResponse(
+        service.stream_chat(request),
+        media_type=SSE_MEDIA_TYPE,
+    )

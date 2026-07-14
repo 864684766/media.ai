@@ -1,0 +1,12 @@
+# storyboard Skill 工具声明（Phase 3 MCP 预留）
+# 当前 mcp.enabled=false，仅文档化未来依赖
+
+skill_id: storyboard
+phase: 3
+mcp_enabled: false
+servers: []
+# 未来示例:
+# - id: filesystem
+#   use: 导出标准分镜表文件（csv/xlsx/md）
+# - id: image
+#   use: 按画面描述生成分镜示意图

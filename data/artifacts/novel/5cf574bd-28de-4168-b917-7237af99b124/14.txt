@@ -1,0 +1,5 @@
+## 创作需求摘要（video）
+
+- **q_platform**：广告片
+- **q_duration**：30秒内
+- **q_style**：动漫

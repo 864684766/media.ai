@@ -1,0 +1,2 @@
+V3 Stub clip for shot 2
+action: 

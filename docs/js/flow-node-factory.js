@@ -27,7 +27,7 @@ function mainNode(id, type, x, y, label, bg, border) {
 }
 
 /**
- * 创建路由决策节点（三分支互斥）
+ * 创建路由决策节点（能力开关 needs_project / needs_web / needs_creative）
  * @param {string} id 节点 id
  * @param {number} x X 坐标
  * @param {number} y Y 坐标
@@ -39,7 +39,7 @@ function decisionNode(id, x, y) {
     position: { x: x, y: y },
     sourcePosition: HANDLE_BOTTOM,
     targetPosition: HANDLE_TOP,
-    data: { label: 'route_question\n【判断问题类型】\n三选一 互斥' },
+    data: { label: 'route_question\n【能力开关】\nneeds_* 可组合' },
     style: decisionNodeStyle()
   };
 }

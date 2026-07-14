@@ -1,0 +1,90 @@
+根据您提供的大纲和风格说明，以下是分镜表设计：
+
+```json
+[
+  {
+    "shot_no": "01",
+    "duration_sec": 3,
+    "shot_size": "medium",
+    "camera": "static",
+    "action": "地铁车厢内，乘客们安静有序，画面上出现字幕：地铁文明的宣传短视频。",
+    "dialogue": "",
+    "sfx": "背景音乐轻快，节奏感强。",
+    "character_ids": [],
+    "scene_id": "subway_cars",
+    "prop_ids": [],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "02",
+    "duration_sec": 5,
+    "shot_size": "medium",
+    "camera": "dolly_in",
+    "action": "镜头缓慢推进，聚焦在乘客的脸上，展示他们的微笑和轻松的表情。",
+    "dialogue": "",
+    "sfx": "背景音乐继续，节奏逐渐加快。",
+    "character_ids": ["passenger_1", "passenger_2", "passenger_3"],
+    "scene_id": "subway_cars",
+    "prop_ids": [],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "03",
+    "duration_sec": 6,
+    "shot_size": "medium",
+    "camera": "static",
+    "action": "画面切换至车厢内的座椅和扶手，干净整洁，字幕出现：文明乘车，从细节开始。",
+    "dialogue": "",
+    "sfx": "背景音乐节奏继续加快。",
+    "character_ids": [],
+    "scene_id": "subway_cars",
+    "prop_ids": ["seat", "handrail"],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "04",
+    "duration_sec": 7,
+    "shot_size": "medium",
+    "camera": "dolly_out",
+    "action": "镜头拉远，展示整个车厢，乘客们都在遵守秩序。",
+    "dialogue": "",
+    "sfx": "背景音乐达到高潮。",
+    "character_ids": ["passenger_1", "passenger_2", "passenger_3", "passenger_4", "passenger_5"],
+    "scene_id": "subway_cars",
+    "prop_ids": ["subway_car_interior"],
+    "transition": "cut"
+  },
+  {
+    "shot_no": "05",
+    "duration_sec": 5,
+    "shot_size": "medium",
+    "camera": "static",
+    "action": "画面切换至车厢内的宣传海报，展示文明乘车的标语。",
+    "dialogue": "",
+    "sfx": "背景音乐逐渐减弱。",
+    "character_ids": [],
+    "scene_id": "subway_cars",
+    "prop_ids": ["poster"],
+    "transition": "dissolve"
+  },
+  {
+    "shot_no": "06",
+    "duration_sec": 3,
+    "shot_size": "medium",
+    "camera": "static",
+    "action": "画面上出现字幕：让我们一起，共创文明地铁。",
+    "dialogue": "",
+    "sfx": "背景音乐结束。",
+    "character_ids": [],
+    "scene_id": "subway_cars",
+    "prop_ids": [],
+    "transition": "fade_out"
+  }
+]
+```
+
+### 分镜思路说明
+
+1. **开场钩子（01）**：通过静态镜头展示车厢内的安静与有序，吸引观众注意力，并引入主题。
+2. **节奏上扬（02-04）**：通过镜头运动和画面内容，展示乘客们的良好行为和车厢的整洁，营造积极氛围。
+3. **高潮收束（05-06）**：通过宣传海报和标语，强化文明乘车的重要性，并结束视频，留下深刻印象。

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lanmo 开发进度日志</title>
+  <link rel="stylesheet" href="css/doc-base.css">
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <h2>文档导航</h2>
+    <ul>
+      <li><a href="index.html">项目入门</a></li>
+      <li><a href="ARCHITECTURE.html">架构设计</a></li>
+      <li><a href="VIDEO_PIPELINE.html">视频生产线</a></li>
+      <li><a href="DEVELOPMENT_LOG.html" class="active">开发进度日志</a></li>
+    </ul>
+    <h2 style="margin-top:1.5rem;">本页目录</h2>
+    <ul>
+      <li><a href="#sec-glossary">术语速查</a></li>
+      <li><a href="#sec-step0">步骤 0</a></li>
+      <li><a href="#sec-step1">步骤 1</a></li>
+      <li><a href="#sec-step1b">步骤 1b</a></li>
+      <li><a href="#sec-step2">步骤 2</a></li>
+      <li><a href="#sec-step3">步骤 3</a></li>
+      <li><a href="#sec-step4">步骤 4</a></li>
+      <li><a href="#sec-step5">步骤 5</a></li>
+      <li><a href="#sec-step6">步骤 6</a></li>
+      <li><a href="#sec-step7">步骤 7</a></li>
+      <li><a href="#sec-step8">步骤 8</a></li>
+      <li><a href="#sec-step9">步骤 9</a></li>
+      <li><a href="#sec-step10">步骤 10</a></li>
+      <li><a href="#sec-step11">步骤 11</a></li>
+      <li><a href="#sec-step12">步骤 12</a></li>
+      <li><a href="#sec-step13">步骤 13</a></li>
+      <li><a href="#sec-step14">步骤 14</a></li>
+      <li><a href="#sec-step15">步骤 15</a></li>
+      <li><a href="#sec-step16">步骤 16</a></li>
+      <li><a href="#sec-step17">步骤 17</a></li>
+      <li><a href="#sec-step18">步骤 18</a></li>
+      <li><a href="#sec-step19">步骤 19</a></li>
+      <li><a href="#sec-step20">步骤 20</a></li>
+      <li><a href="#sec-step21">步骤 21</a></li>
+      <li><a href="#sec-status">当前状态</a></li>
+      <li><a href="#sec-video-todos">视频待办 Phase V</a></li>
+      <li><a href="#sec-next">下一步</a></li>
+      <li><a href="#sec-changelog">变更记录</a></li>
+    </ul>
+  </nav>
+  <main>
+    <header class="doc-header">
+      <h1>lanmo 开发进度日志</h1>
+      <p class="meta">面向初学者 · 最后更新：2026-07-09</p>
+      <blockquote style="margin-top:1rem;">
+        记录<strong>每一步做了什么、为什么做、关键文件在哪</strong>。
+        架构细节以 <a href="ARCHITECTURE.html">ARCHITECTURE.html</a> 为权威；本页为按时间/步骤的摘要。
+      </blockquote>
+    </header>
+
+    <section id="sec-glossary">
+      <h2>术语速查（初学者）</h2>
+
+      <h3 id="glossary-tavily">Tavily 是什么？</h3>
+      <p><strong>Tavily</strong> 是给 AI Agent 用的<strong>联网搜索 API</strong>（不是给人类打开的搜索网站）。程序把问题发给 Tavily，返回适合喂给大模型的网页摘要。在 lanmo 里已由 <code>app/retrieval/web_search.py</code> 实现调用（<code>TavilyWebSearcher</code>）：配置 <code>.env</code> 的 <code>TAVILY_API_KEY</code> 后，当检索评估为 no_evidence 且路由 needs_web 时自动联网兜底；未配置 Key 时自动降级为空结果，不影响主流程。</p>
+
+      <h3 id="glossary-websearch">常见 Agent Web 搜索工具</h3>
+      <table>
+        <thead><tr><th>工具</th><th>类型</th><th>特点</th><th>常见场景</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tavily</strong></td><td>商业 API</td><td>为 LLM/RAG 优化</td><td>LangChain/LangGraph 教程</td></tr>
+          <tr><td><strong>Serper</strong></td><td>Google 结果 API</td><td>接近 Google 结果</td><td>需要谷歌式结果</td></tr>
+          <tr><td><strong>Bing Web Search</strong></td><td>Azure</td><td>企业合规</td><td>企业部署</td></tr>
+          <tr><td><strong>Google Custom Search</strong></td><td>谷歌官方</td><td>可限定站点</td><td>垂直搜索</td></tr>
+          <tr><td><strong>Exa</strong></td><td>语义搜索 API</td><td>偏神经检索</td><td>研究型 Agent</td></tr>
+          <tr><td><strong>Brave Search API</strong></td><td>独立索引</td><td>隐私向</td><td>替代传统 API</td></tr>
+          <tr><td><strong>DuckDuckGo</strong></td><td>社区封装</td><td>免费但不稳定</td><td>原型 Demo</td></tr>
+        </tbody>
+      </table>
+      <p>lanmo 示例选 Tavily；以后可换 provider + <code>app/retrieval/web_search.py</code> 适配器（Phase 2）。</p>
+
+      <h3 id="glossary-pydantic">Pydantic 是什么？</h3>
+      <p><strong>Pydantic</strong> 是 Python 的<strong>数据校验与模型库</strong>（本项目用 <code>pydantic-settings</code> 读 <code>.env</code>）。定义字段与类型后，自动校验、默认值、IDE 提示；非法数据会报错。</p>
+      <table>
+        <thead><tr><th>文件</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/core/config.py</code></td><td><code>AppSettings</code>：端口、日志</td></tr>
+          <tr><td><code>app/core/runtime_config.py</code></td><td><code>RuntimeConfig</code>：Agent 运行参数</td></tr>
+          <tr><td><code>app/skills/skill_models.py</code></td><td><code>SkillContext</code>：Skill 加载结果</td></tr>
+          <tr><td>将来 <code>app/schemas/</code></td><td><code>ChatRequest</code>、<code>AgentState</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-step0">
+      <h2>步骤 0 · 架构文档与目录约定</h2>
+      <p><strong>目标</strong>：统一「内容 vs 代码」目录。</p>
+      <ul>
+        <li>重写 <a href="ARCHITECTURE.html#appendix">ARCHITECTURE 附录</a>：<code>skills/</code> vs <code>app/skills/</code>、<code>app/ingestion/</code></li>
+        <li>流程图同步 <code>needs_*</code> 能力开关</li>
+        <li>Skill 内容迁到根目录 <code>skills/novel-writing/</code></li>
+      </ul>
+      <p><strong>要记住</strong>：人设 → <code>skills/</code>；扫描代码 → <code>app/skills/</code>；<code>.env</code> 管启动，<code>config/app.yaml</code> 管 Agent。</p>
+    </section>
+
+    <section id="sec-step1">
+      <h2>步骤 1 · Phase 1 第 1 周：配置体系 <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：运维只选 <code>profile: dev|prod|strict</code>，得到 <code>RuntimeConfig</code>。</p>
+      <table>
+        <thead><tr><th>产出</th><th>路径</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td>运维配置</td><td><code>config/app.yaml</code></td><td>Profile、model、skills 等</td></tr>
+          <tr><td>环境变量</td><td><code>.env.example</code></td><td>端口、日志</td></tr>
+          <tr><td>解析入口</td><td><code>app/core/config_resolver.py</code></td><td><code>resolve()</code></td></tr>
+          <tr><td>套餐</td><td><code>app/core/profile_presets.py</code></td><td>dev/prod/strict</td></tr>
+          <tr><td>模型</td><td><code>app/core/runtime_config.py</code></td><td>Pydantic 结果</td></tr>
+          <tr><td>测试</td><td><code>tests/test_config_resolver.py</code></td><td>6 个用例</td></tr>
+        </tbody>
+      </table>
+      <p><strong>三层配置</strong>：L1 代码硬上限 → L2 Profile 套餐 → L3 可选 <code>config.override.yaml</code></p>
+      <pre><code>from app.core.config_resolver import resolve
+cfg = resolve()
+print(cfg.profile, cfg.max_retries, cfg.retrieve_top_k)</code></pre>
+    </section>
+
+    <section id="sec-step1b">
+      <h2>步骤 1b · 存储层骨架（预览） <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：按 <code>app/storage/</code> 目录提前看清 PG / Neo4j 怎么连、怎么测；<strong>不含</strong> migrations 与完整 CRUD。</p>
+      <table>
+        <thead><tr><th>目录</th><th>主要入口</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/storage/postgres/</code></td><td><code>create_postgres_engine</code>、<code>postgres_session_scope</code>、<code>check_postgres_health</code></td><td>SQLAlchemy 连 PG</td></tr>
+          <tr><td><code>app/storage/neo4j/</code></td><td><code>create_neo4j_driver</code>、<code>run_read_cypher</code>、<code>check_neo4j_health</code></td><td>Neo4j Driver + 只读 Cypher</td></tr>
+        </tbody>
+      </table>
+      <p><strong>.env 示例</strong>（见 <code>.env.example</code>）：</p>
+      <pre><code>DATABASE_URL=postgresql+psycopg://user:pass@127.0.0.1:5432/lanmo
+NEO4J_URI=bolt://127.0.0.1:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your-password</code></pre>
+      <p><strong>本地试用</strong>（配置 .env 后）：</p>
+      <pre><code>from app.storage import check_postgres_health, check_neo4j_health
+print(check_postgres_health())
+print(check_neo4j_health())</code></pre>
+      <p>未配置 URL 时 health 返回「未配置」，不报错，便于无库开发。测试：<code>tests/test_storage.py</code>。</p>
+    </section>
+
+    <section id="sec-step2">
+      <h2>步骤 2 · Skill Registry 示例 <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：<code>app/skills/</code> 扫描根目录 <code>skills/</code> 并读 <code>system.md</code>。</p>
+      <p><strong>流程</strong>：<code>skills/*/SKILL.md</code> → 匹配 → <code>prompts/system.md</code> → <code>SkillContext.system_prompt</code>（<strong>不是</strong> <code>state.prompt</code>）。</p>
+      <p>已在步骤 7 起通过 <code>load_skill</code> 节点接入对话图。</p>
+    </section>
+
+    <section id="sec-step3">
+      <h2>步骤 3 · 注释与配置规范</h2>
+      <ul>
+        <li>规则 <code>.cursor/rules/code-comments-and-config.mdc</code></li>
+        <li><code>config/app.yaml</code>、<code>.env.example</code> 中文注释</li>
+        <li><code>app/core/config*.py</code>、<code>app/skills/registry.py</code> 流程说明</li>
+      </ul>
+    </section>
+
+    <section id="sec-step4">
+      <h2>步骤 4 · 文档统一为 HTML</h2>
+      <ul>
+        <li>规则 <code>.cursor/rules/docs-html-only.mdc</code></li>
+        <li><code>docs/index.html</code> 替代原 README.md</li>
+        <li>本页 <code>DEVELOPMENT_LOG.html</code> 替代原 .md</li>
+        <li>共用样式 <code>docs/css/doc-base.css</code></li>
+      </ul>
+      <p><strong>例外</strong>：<code>skills/*/SKILL.md</code> 仍为 Agent Skills 标准格式，不改为 HTML。</p>
+    </section>
+
+    <section id="sec-step5">
+      <h2>步骤 5 · Phase 1 第 2 周：Provider Registry <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：让系统通过配置切换大模型厂商，第一版接 OpenAI Chat Completions 兼容协议。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/providers/provider_models.py</code></td><td>ChatMessage、ModelConfig、请求与响应模型</td></tr>
+          <tr><td><code>app/providers/provider_settings_reader.py</code></td><td>读取 <code>config/app.yaml</code> 的 model 段与 <code>.env</code> API Key</td></tr>
+          <tr><td><code>app/providers/openai_compatible.py</code></td><td>调用 OpenAI 兼容 <code>/chat/completions</code> 接口</td></tr>
+          <tr><td><code>app/providers/registry.py</code></td><td>注册 zhipu / deepseek / kimi / local-openai-compatible</td></tr>
+          <tr><td><code>tests/test_providers.py</code></td><td>MockTransport 测试，不调用真实模型</td></tr>
+        </tbody>
+      </table>
+      <p><strong>配置</strong>：<code>config/app.yaml</code> 写 provider/model/api_base；真实密钥放 <code>.env</code>，如 <code>ZHIPU_API_KEY</code>。</p>
+      <pre><code>from app.providers import ChatCompletionRequest, ChatMessage, build_current_provider
+
+provider = build_current_provider()
+result = provider.chat(ChatCompletionRequest(messages=[
+    ChatMessage(role="user", content="你好")
+]))
+print(result.content)</code></pre>
+      <p><strong>当前边界</strong>：已支持非流式调用骨架；SSE 流式与 LangGraph <code>generate</code> 节点在后续步骤接入。</p>
+    </section>
+
+    <section id="sec-step6">
+      <h2>步骤 6 · Phase 1 第 3 周：PostgreSQL 会话 CRUD <span class="tag">已实现基础版</span></h2>
+      <p><strong>目标</strong>：为后续 <code>load_history</code> / <code>save_messages</code> 准备 conversations 与 messages 的基础读写能力。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/models/postgres/base.py</code></td><td>SQLAlchemy ORM 基类</td></tr>
+          <tr><td><code>app/models/postgres/conversation_model.py</code></td><td><code>conversations</code> 表模型</td></tr>
+          <tr><td><code>app/models/postgres/message_model.py</code></td><td><code>messages</code> 表模型</td></tr>
+          <tr><td><code>app/storage/postgres/postgres_metadata.py</code></td><td>测试/学习用 <code>create_all_tables()</code></td></tr>
+          <tr><td><code>app/storage/postgres/conversation_repository.py</code></td><td>创建会话、追加消息、读取历史</td></tr>
+          <tr><td><code>tests/test_conversation_repository.py</code></td><td>SQLite 内存库 CRUD 测试</td></tr>
+        </tbody>
+      </table>
+      <p><strong>边界</strong>：当前为基础 CRUD；正式 migration 后续建议接 Alembic，生产表结构以 migrations 为准。</p>
+    </section>
+
+    <section id="sec-step7">
+      <h2>步骤 7 · Phase 1 第 4 周：最小对话图骨架 <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：先按 LangGraph 的节点思路组织目录和 State，让初学者看懂 <code>load_history → generate → save_messages</code> 的数据流。</p>
+      <table>
+        <thead><tr><th>模块</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/schemas/chat.py</code></td><td>HTTP 请求/事件契约</td></tr>
+          <tr><td><code>app/schemas/agent_state.py</code></td><td>图内共享状态 AgentState / RouteDecision</td></tr>
+          <tr><td><code>app/graph/nodes/</code></td><td>节点函数：读 state → 写 state</td></tr>
+          <tr><td><code>app/graph/chat_graph.py</code></td><td>最小顺序执行器；后续可替换为真实 LangGraph StateGraph</td></tr>
+        </tbody>
+      </table>
+      <p><strong>边界</strong>：本步先保证数据流可测；真实 SSE、checkpoint 与 LangGraph 依赖在后续逐步接入。</p>
+    </section>
+
+    <section id="sec-step8">
+      <h2>步骤 8 · POST SSE Chat API <span class="tag">已实现最小版</span></h2>
+      <p><strong>目标</strong>：把最小对话图接到 <code>POST /api/v1/chat</code>，返回 SSE 事件流。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/api/chat.py</code></td><td>新增 POST 路由，返回 <code>StreamingResponse</code></td></tr>
+          <tr><td><code>app/services/chat.py</code></td><td>调用最小图并输出 SSE frame</td></tr>
+          <tr><td><code>app/services/chat_stream_formatter.py</code></td><td>把事件 dict 格式化为 SSE 文本</td></tr>
+          <tr><td><code>tests/test_chat.py</code></td><td>验证 GET 与 POST SSE</td></tr>
+        </tbody>
+      </table>
+      <p><strong>事件</strong>：<code>message_start</code> → <code>content_delta</code> → <code>message_end</code>。</p>
+    </section>
+
+    <section id="sec-step9">
+      <h2>步骤 9 · Provider 生成与 PG 持久化接图 <span class="tag">已实现基础版</span></h2>
+      <p><strong>目标</strong>：让 <code>generate</code> 节点默认尝试调用 Provider，并让 <code>load_history</code> / <code>save_messages</code> 支持接入 <code>ConversationRepository</code>；API 层通过依赖注入自动提供可选 Repository。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/graph/provider_responder.py</code></td><td>把 AgentState 转成 Provider 请求；无 API Key 时返回清晰提示</td></tr>
+          <tr><td><code>app/graph/nodes/generate.py</code></td><td>默认走 Provider，可测试注入 responder</td></tr>
+          <tr><td><code>app/graph/nodes/load_history.py</code></td><td>可从 Repository 读取历史</td></tr>
+          <tr><td><code>app/graph/nodes/save_messages.py</code></td><td>可写入 conversations/messages</td></tr>
+          <tr><td><code>app/api/deps.py</code></td><td><code>DATABASE_URL</code> 已配置时创建 Repository，未配置时返回 <code>None</code></td></tr>
+          <tr><td><code>app/services/chat.py</code></td><td>接收可选 Repository 并传给最小图</td></tr>
+        </tbody>
+      </table>
+      <p><strong>边界</strong>：生产数据库连接由 <code>.env DATABASE_URL</code> 决定；未配置时接口仍可运行但不落库。测试通过 FastAPI dependency override 注入 SQLite Repository。</p>
+    </section>
+
+    <section id="sec-step10">
+      <h2>步骤 10 · 真实运行环境检查脚本 <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：配置真实 `.env` 后，用脚本检查智谱 GLM、PostgreSQL、Neo4j 是否可达，并提供快速建表入口。</p>
+      <table>
+        <thead><tr><th>脚本</th><th>作用</th><th>运行命令</th></tr></thead>
+        <tbody>
+          <tr><td><code>scripts/check_runtime.py</code></td><td>检查 Provider / PG / Neo4j 连通性</td><td><code>poetry run python scripts/check_runtime.py</code></td></tr>
+          <tr><td><code>scripts/init_postgres_tables.py</code></td><td>按 ORM 创建 conversations / messages 表</td><td><code>poetry run python scripts/init_postgres_tables.py</code></td></tr>
+        </tbody>
+      </table>
+      <p><strong>注意</strong>：<code>check_runtime.py</code> 会真实调用远程服务，但不会打印 API Key 或数据库密码。Neo4j 程序连接使用 <code>bolt://host:7687</code>，不是 Browser 的 <code>http://host:7474/browser/</code>。</p>
+    </section>
+
+    <section id="sec-step11">
+      <h2>步骤 11 · 多轮 E2E 脚本与 SSE 错误事件 <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：提供可手动执行的两轮 Chat E2E，并让 SSE 接口在异常时返回 <code>error</code> 事件。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>scripts/run_chat_e2e.py</code></td><td>用 TestClient 连续发送两轮 POST /chat，验证 conversation_id 续聊</td></tr>
+          <tr><td><code>app/services/chat_stream_runner.py</code></td><td>运行图并捕获异常为 SSE error 事件</td></tr>
+          <tr><td><code>app/services/chat_stream_formatter.py</code></td><td>新增 <code>build_error_sse_frame()</code></td></tr>
+          <tr><td><code>tests/test_chat_stream_runner.py</code></td><td>验证异常会变成 <code>event: error</code></td></tr>
+        </tbody>
+      </table>
+      <p><strong>运行</strong>：<code>poetry run python scripts/run_chat_e2e.py</code>。若配置了真实 Provider / DATABASE_URL，会真实调用模型并按依赖注入写入 PG。</p>
+    </section>
+
+    <section id="sec-step12">
+      <h2>步骤 12 · Provider token 级流式输出 <span class="tag">已实现基础版</span></h2>
+      <p><strong>目标</strong>：把 Chat SSE 从“一次性返回完整回答”升级为“Provider 每产出一段，就推送一个 <code>content_delta</code>”，同时支持 <code>usage</code> 事件与 Provider 错误分类。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/providers/openai_stream_parser.py</code></td><td>解析 OpenAI 兼容 SSE 行，提取 delta / usage</td></tr>
+          <tr><td><code>app/providers/openai_compatible.py</code></td><td>新增 <code>stream_chat()</code> 与 <code>stream_chat_chunks()</code></td></tr>
+          <tr><td><code>app/providers/provider_errors.py</code></td><td>Provider 超时、鉴权、HTTP、网络错误分类</td></tr>
+          <tr><td><code>app/services/chat_stream_runner.py</code></td><td>准备 state → 推送 delta/usage → 保存完整回答 → message_end</td></tr>
+        </tbody>
+      </table>
+      <p><strong>边界</strong>：当前是 OpenAI 兼容 SSE 流式；若 Provider 未配置 API Key，仍返回清晰提示并正常结束。<code>citation</code> formatter 已预留，Phase 2 检索接入后真正发送。</p>
+    </section>
+
+    <section id="sec-step13">
+      <h2>步骤 13 · Phase 2：Ingestion Lite 骨架 <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：实现内部导入流水线的第一步：文本切分、feed_adapter Stub、dry-run CLI，不做 HTTP 喂养接口。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/ingestion/ingestion_models.py</code></td><td>导入文档、chunk、结果模型</td></tr>
+          <tr><td><code>app/ingestion/chunker.py</code></td><td>按 <code>chunk_size</code> / <code>chunk_overlap</code> 切分文本</td></tr>
+          <tr><td><code>app/ingestion/feed_adapter.py</code></td><td>未来喂养系统对接 Stub；当前 dry-run</td></tr>
+          <tr><td><code>app/ingestion/pipeline.py</code></td><td>文档 → chunks → adapter 的流程编排</td></tr>
+          <tr><td><code>scripts/seed_novel.py</code></td><td>内部 CLI，默认 dry-run 预览 chunk</td></tr>
+        </tbody>
+      </table>
+      <p><strong>边界</strong>：当前不写远程 PG / Neo4j，不生成 embedding；后续再接真正写入和向量化。</p>
+    </section>
+
+    <section id="sec-step14">
+      <h2>步骤 14 · 真实 LangGraph StateGraph 接入 <span class="tag">已实现</span></h2>
+      <p><strong>目标</strong>：把最小顺序执行器替换为真实 <code>langgraph.StateGraph</code>，节点实现保持纯函数复用。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/graph/langgraph_builder.py</code></td><td>组图：完整图（含 generate/save）与 SSE 准备图（到 compact 为止）</td></tr>
+          <tr><td><code>app/graph/graph_node_adapters.py</code></td><td>把带注入参数的节点函数包装成 LangGraph 标准签名（state → 字段更新 dict）</td></tr>
+          <tr><td><code>app/graph/graph_constants.py</code></td><td>节点名与条件分支名常量</td></tr>
+          <tr><td><code>app/graph/graph_result_converter.py</code></td><td>invoke 返回 dict → AgentState</td></tr>
+          <tr><td><code>tests/test_langgraph_builder.py</code></td><td>节点齐全性与两张图行为差异</td></tr>
+        </tbody>
+      </table>
+      <p><strong>学习要点</strong>：LangGraph 节点只能收 state 一个参数，repository / responder 等依赖用「闭包工厂」在组图时绑定。</p>
+    </section>
+
+    <section id="sec-step15">
+      <h2>步骤 15 · route_question 规则层 + MCP 空 Stub <span class="tag">已实现</span></h2>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/graph/route_rules.py</code> / <code>route_rule_constants.py</code></td><td>关键词启发式推断 needs_project / needs_web / needs_creative；「第 X 章」正则</td></tr>
+          <tr><td><code>app/mcp/client.py</code> / <code>mcp_settings_reader.py</code></td><td>MCP Client 接口骨架；读 <code>mcp.enabled</code>；禁用态调用给出引导错误</td></tr>
+          <tr><td><code>tests/test_route_rules.py</code>、<code>tests/test_mcp_client.py</code></td><td>路由组合（A+C 复合）与 MCP 降级行为</td></tr>
+        </tbody>
+      </table>
+      <p><strong>边界</strong>：LLM 结构化路由与 sub_queries 意图拆分为后续增强；MCP 真实调用为 Phase 3。</p>
+    </section>
+
+    <section id="sec-step16">
+      <h2>步骤 16 · PG documents/chunks + Neo4j 写入与向量索引 <span class="tag">已实现</span></h2>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/models/postgres/document_model.py</code> / <code>chunk_model.py</code></td><td>documents / chunks 表 ORM（chunk_id 真相源）</td></tr>
+          <tr><td><code>app/storage/postgres/document_repository.py</code></td><td>文档 upsert 与 chunks 幂等覆盖写</td></tr>
+          <tr><td><code>app/storage/postgres/chunk_keyword_searcher.py</code></td><td>关键词路召回（切词 + 中文 bigram + LIKE 打分）</td></tr>
+          <tr><td><code>app/storage/neo4j/neo4j_chunk_writer.py</code> / <code>neo4j_chunk_cypher.py</code></td><td>MERGE 写 Document/Chunk 节点、HAS_CHUNK/NEXT 边</td></tr>
+          <tr><td><code>app/storage/neo4j/neo4j_vector_index.py</code> / <code>neo4j_write_runner.py</code></td><td>向量索引创建（幂等）与 kNN 近邻查询</td></tr>
+        </tbody>
+      </table>
+      <p><strong>学习要点</strong>：PG 与 Neo4j 使用同一 chunk_id（<code>{document_id}:{index}</code>），这是 RRF 融合与 citation 回指的前提（架构 sec-04.7）。</p>
+    </section>
+
+    <section id="sec-step17">
+      <h2>步骤 17 · Ingestion embedding 与真实写库 <span class="tag">已实现</span></h2>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/ingestion/embedder.py</code> / <code>embedding_hash_helper.py</code></td><td>HashingEmbedder：本地确定性向量（哈希技巧），零外部依赖</td></tr>
+          <tr><td><code>app/ingestion/database_feed_adapter.py</code></td><td>真实写库 adapter：PG 真相源 + 可选 Neo4j 图谱</td></tr>
+          <tr><td><code>app/ingestion/adapter_factory.py</code></td><td>按 .env / app.yaml 组装 adapter，自动建向量索引</td></tr>
+          <tr><td><code>scripts/seed_novel.py</code></td><td>新增 <code>--write</code> 模式真实写库；默认仍 dry-run</td></tr>
+        </tbody>
+      </table>
+      <p><strong>说明</strong>：hashing embedding 供学习/测试，生产可在 <code>build_embedder()</code> 注册 API embedder 平滑替换（配置 <code>ingestion.embedding</code>）。</p>
+    </section>
+
+    <section id="sec-step18">
+      <h2>步骤 18 · 检索链与 citation SSE <span class="tag">已实现</span></h2>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/retrieval/hybrid.py</code> / <code>rrf.py</code></td><td>两路召回 + RRF 融合；单路缺席自动降级</td></tr>
+          <tr><td><code>app/retrieval/grader.py</code> / <code>rerank.py</code></td><td>规则版相关性评估与精排（LLM/Cross-Encoder 后续增强）</td></tr>
+          <tr><td><code>app/retrieval/web_search.py</code></td><td>Tavily 联网搜索；无 Key 自动降级为空结果</td></tr>
+          <tr><td><code>app/retrieval/retrieval_pipeline.py</code></td><td>编排：Hybrid → Grader →（relevant）Rerank /（no_evidence）Web 兜底</td></tr>
+          <tr><td><code>app/graph/nodes/retrieve_context.py</code></td><td>薄节点；LangGraph 条件边按 needs_* 决定是否进入</td></tr>
+          <tr><td><code>app/services/chat_citation_helper.py</code></td><td>SSE citation 事件：message_start 后逐条推送 {chunk_id, source, excerpt}</td></tr>
+        </tbody>
+      </table>
+      <p><strong>验收对齐</strong>：Phase 2 里程碑「CLI 灌数据 → chat 带 citation」已可走通（<code>seed_novel.py --write</code> 后 POST chat 查设定）。</p>
+    </section>
+
+    <section id="sec-step19">
+      <h2>步骤 19 · 闲置配置接入 + 视频创作 Skill <span class="tag">已实现</span></h2>
+      <table>
+        <thead><tr><th>项</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>history.retention_days</code></td><td>load_history 只加载保留期内消息（<code>history_settings_reader.py</code>）</td></tr>
+          <tr><td><code>skills.auto_discover</code></td><td>false 时仅显式 skill_id 才加载 Skill</td></tr>
+          <tr><td><code>web_search.max_results</code></td><td>联网搜索条数生效（<code>web_search_settings_reader.py</code>）</td></tr>
+          <tr><td><code>skills/director/</code></td><td>资深导演 Skill：策划、镜头语言、节奏（架构 sec-10.4）</td></tr>
+          <tr><td><code>skills/storyboard/</code></td><td>分镜师 Skill：逐镜分镜表标准字段与拆解原则</td></tr>
+        </tbody>
+      </table>
+      <p><strong>边界</strong>：<code>rerank.model</code>（Cross-Encoder）与 <code>database</code> 段为声明/预留配置，注释已在 <code>config/app.yaml</code> 标明。</p>
+    </section>
+
+    <section id="sec-step20">
+      <h2>步骤 20 · 路由级联：告别关键词写死 <span class="tag">已实现</span></h2>
+      <p><strong>动机</strong>：纯关键词路由「换个说法就漏判」。业内成熟做法（2026 生产共识）是<strong>路由级联</strong>：
+        便宜的层先判、置信度不够再升级到贵的层（规则 → 语义路由 → LLM 结构化输出），把 LLM 调用压到少量模糊流量上。
+        详细设计见 <a href="ARCHITECTURE.html#sec-07">架构 sec-07 7.2</a>。</p>
+      <table>
+        <thead><tr><th>文件</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td><code>app/graph/route_cascade.py</code></td><td>级联编排：规则先判 → 置信度 &lt; 阈值升级 LLM → 失败回退规则</td></tr>
+          <tr><td><code>app/graph/route_settings_reader.py</code></td><td>读 <code>app.yaml</code> route 段：mode / 阈值 / <strong>关键词覆盖表</strong>（不再只能改代码）</td></tr>
+          <tr><td><code>app/graph/llm_route_classifier.py</code></td><td>L3 层：调 Provider 按 JSON Schema 输出 RouteDecision，异常返回 None</td></tr>
+          <tr><td><code>app/graph/llm_route_prompt.py</code> / <code>llm_route_parser.py</code></td><td>分类提示词（低温度、只输出 JSON）；解析容错（剥代码块、截取 JSON、字段兜底）</td></tr>
+          <tr><td><code>app/graph/route_classifier_factory.py</code></td><td>按 mode 决定是否构建分类器；Provider 缺配置自动退化纯规则</td></tr>
+          <tr><td><code>tests/test_route_cascade.py</code></td><td>12 个用例：配置读取、JSON 解析容错、级联三模式行为</td></tr>
+        </tbody>
+      </table>
+      <p><strong>学习要点</strong>：</p>
+      <ul>
+        <li>级联的核心是「置信度门控」：规则命中（0.6）≥ 阈值（0.6）走快路径；未命中（0.5）才问 LLM</li>
+        <li>LLM 路由必须<strong>永不阻塞主流程</strong>：调用失败、JSON 解析失败一律回退规则结果，reason 标注回退原因便于排查</li>
+        <li>L2 语义路由（示例句 embedding + 余弦相似度）需真实语义向量，待替换 HashingEmbedder 后接入</li>
+      </ul>
+    </section>
+
+    <section id="sec-step21">
+      <h2>步骤 21 · 字面量治理审计 <span class="tag">已实现</span></h2>
+      <p><strong>动机</strong>：「约定大于配置」的前提是约定有<strong>唯一权威定义处</strong>。
+        审计发现同一字面量多处重复（角色字符串 3 处、prompt 段落标题 3 处、memory 占位 id 3 处），
+        改一处会漏另一处，反而破坏该原则。治理原则与归属决策表见
+        <a href="ARCHITECTURE.html#sec-08-literal">架构 sec-08 8.5</a>（权威）。</p>
+      <table>
+        <thead><tr><th>治理项</th><th>权威定义处</th><th>原状态</th></tr></thead>
+        <tbody>
+          <tr><td>消息角色 system/user/assistant</td><td><code>core/constants.py</code> ROLE_*</td><td>postgres_constants 定义一套、llm_route_prompt 又一套、provider_request_builder 内联</td></tr>
+          <tr><td>Prompt 段落标题（【作品库证据】等）</td><td><code>graph/prompt_constants.py</code>（新建）</td><td>prompt_builder 内联 + 2 个测试复制字面量断言</td></tr>
+          <tr><td>memory 占位消息 id</td><td><code>graph/graph_constants.py</code></td><td>节点内联 + 2 个测试复制</td></tr>
+          <tr><td>SSE data 字段键（delta/chunk_id 等）</td><td><code>core/constants.py</code> SSE_FIELD_*</td><td>formatter 与 citation helper 内联（sec-15 对外契约）</td></tr>
+          <tr><td>Neo4j kNN 返回列名</td><td><code>neo4j_constants.py</code> KNN_COLUMN_*</td><td>Cypher 与消费方两处各写一遍</td></tr>
+          <tr><td>Tavily / OpenAI 协议键</td><td><code>retrieval_constants.py</code> / <code>provider_constants.py</code></td><td>请求构造与响应解析内联</td></tr>
+          <tr><td>路由 reason 文案与 domain 取值</td><td><code>core/constants.py</code> + <code>route_rule_constants.py</code></td><td>内联，且 schema 默认值仍写着过时的「Phase 1 默认创作通道」</td></tr>
+        </tbody>
+      </table>
+      <p><strong>学习要点</strong>：跨层契约放 core、层内协议放该层 <code>*_constants.py</code>、
+        「一方写一方读」的键名双方 import 同一常量（含测试断言）；
+        规则已固化到 <code>.cursor/rules/code-comments-and-config.mdc</code>「字面量治理」节。</p>
+    </section>
+
+    <section id="sec-status">
+      <h2>当前仓库状态</h2>
+      <table>
+        <thead><tr><th>模块</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>POST <code>/api/v1/chat</code> SSE</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>ConfigResolver + app.yaml</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>Skill 内容 + Registry 示例</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>HTML 文档站</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>storage 骨架（PG + Neo4j）</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>Provider Registry</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>最小对话图骨架</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>POST Chat SSE 最小版</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>Provider 非流式生成接图</td><td class="status-done">✅ 已实现基础版</td></tr>
+          <tr><td>PG 持久化接图</td><td class="status-done">✅ 已实现（API 可选注入）</td></tr>
+          <tr><td>运行环境检查脚本</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>多轮 E2E 脚本</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>SSE error 事件</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>真实 Provider 流式生成</td><td class="status-done">✅ 已实现基础版</td></tr>
+          <tr><td>PG conversations/messages 基础 CRUD</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>PG migrations（Alembic）</td><td class="status-todo">⏳ 后续补充</td></tr>
+          <tr><td>Ingestion Lite 骨架</td><td class="status-done">✅ 已实现</td></tr>
+          <tr><td>真实 LangGraph StateGraph</td><td class="status-done">✅ 已实现（步骤 14）</td></tr>
+          <tr><td>route_question 规则层路由</td><td class="status-done">✅ 已实现（步骤 15）</td></tr>
+          <tr><td>路由级联（规则 + LLM 结构化输出）</td><td class="status-done">✅ 已实现（步骤 20，route.mode 配置）</td></tr>
+          <tr><td>MCP Client（内置工具 echo / list_project_docs）</td><td class="status-done">✅ 已实现（步骤 28，<code>mcp.enabled: true</code>）</td></tr>
+          <tr><td>media-web 创作工作台 + 知识库页</td><td class="status-done">✅ 已实现（步骤 23/28，独立仓库 E:\test\media-web）</td></tr>
+          <tr><td>GET conversations / skills / knowledge API + CORS</td><td class="status-done">✅ 已实现（步骤 22/28）</td></tr>
+          <tr><td>智谱 API Embedder + L2 语义路由</td><td class="status-done">✅ 已实现（步骤 24/25）</td></tr>
+          <tr><td>LLM Grader + Rewrite 回环 + 语义 Rerank</td><td class="status-done">✅ 已实现（步骤 26）</td></tr>
+          <tr><td>compact_history 摘要 + GraphRAG 兜底</td><td class="status-done">✅ 已实现（步骤 27）</td></tr>
+          <tr><td>PG documents/chunks + 关键词检索</td><td class="status-done">✅ 已实现（步骤 16）</td></tr>
+          <tr><td>Neo4j Chunk 写入 + 向量索引</td><td class="status-done">✅ 已实现（步骤 16）</td></tr>
+          <tr><td>Ingestion embedding + 真实写库</td><td class="status-done">✅ 已实现（步骤 17，seed_novel --write）</td></tr>
+          <tr><td>Hybrid RAG（RRF + Grader + Rerank）</td><td class="status-done">✅ 已实现规则版（步骤 18）</td></tr>
+          <tr><td>Tavily Web 兜底</td><td class="status-done">✅ 已实现（需 TAVILY_API_KEY）</td></tr>
+          <tr><td>citation SSE 事件</td><td class="status-done">✅ 已实现（步骤 18）</td></tr>
+          <tr><td>retention / auto_discover / web_search 配置生效</td><td class="status-done">✅ 已实现（步骤 19）</td></tr>
+          <tr><td>视频创作 Skill（director / storyboard）</td><td class="status-done">✅ 已实现（步骤 19，文本层）</td></tr>
+          <tr><td>视频生产线（结构化分镜/切片/合成/一致性）</td><td class="status-done">✅ V1–V8.6 已实现（真实 AV：local_ffmpeg + edge_tts + BGM）；图生视频暂缓</td></tr>
+          <tr><td>LLM 结构化路由 / Cross-Encoder 精排</td><td class="status-todo">⏳ 增强项</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-video-todos">
+      <h2>视频待办 · Phase V</h2>
+      <p>权威架构：<a href="VIDEO_PIPELINE.html">VIDEO_PIPELINE.html</a>。下列为后续开发排期清单（依赖顺序）；勾选状态随实现更新。</p>
+      <table>
+        <thead><tr><th>ID</th><th>任务</th><th>状态</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>V0</td><td>文本策划 / 分镜 Skill + <code>creation_type=video</code></td><td class="status-done">✅ 已完成</td><td>步骤 19 / 30</td></tr>
+          <tr><td>V1</td><td>结构化分镜：Shot JSON Schema、PG 表/Repository、入库 API/CLI</td><td class="status-done">✅ 已完成</td><td>步骤 33 · shots 表 + video API</td></tr>
+          <tr><td>V2</td><td>一致性资产：Character/Scene/Prop bible + validate_entities</td><td class="status-done">✅ 已完成</td><td>步骤 34 · bible 表 + validate API</td></tr>
+          <tr><td>V3</td><td>关键帧 + 切片 Stub：<code>render_keyframe</code> / <code>render_shot</code> + 落盘 + Job</td><td class="status-done">✅ 已完成</td><td>步骤 35 · render API + files API + 小说 TXT 导出</td></tr>
+          <tr><td>V4</td><td>连续性 QA：规则 + 重试上限；失败禁止入合成</td><td class="status-done">✅ 已完成</td><td>步骤 36 · POST qa API</td></tr>
+          <tr><td>V5</td><td>合成：compose_timeline Stub + compose_jobs</td><td class="status-done">✅ 已完成</td><td>步骤 37 · POST compose API</td></tr>
+          <tr><td>V6</td><td>编排与前端：pipeline + HITL review + media-web 进度/审核</td><td class="status-done">✅ 已完成</td><td>步骤 38 · review + pipeline API</td></tr>
+          <tr><td>V7</td><td>真实 Provider + 成本控制：能力矩阵、cost 记账、budget 熔断、local_ffmpeg mp4</td><td class="status-done">✅ 已完成</td><td>步骤 39 · GET cost + Provider 分发</td></tr>
+          <tr><td>V8</td><td>音频与字幕：<code>tts_dialogue</code>（voice_id 一致）、BGM/音效、字幕、compose 混轨</td><td class="status-done">✅ 已完成</td><td>步骤 40 · audio API + 项目 CRUD</td></tr>
+          <tr><td>V8.5</td><td>真实 TTS + 音画混轨：edge_tts、ffmpeg mux_audio</td><td class="status-done">✅ 已完成</td><td>步骤 45</td></tr>
+          <tr><td>V8.6</td><td>BGM 导入与混轨：audio/bgm API、ffmpeg amix</td><td class="status-done">✅ 已完成</td><td>步骤 62</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-next">
+      <h2>下一步（Phase 2 增强、Phase 3 与 Phase V）</h2>
+      <p>Phase 1 与 Phase 2 主干已完成。后续方向：</p>
+      <ol>
+        <li><strong>Phase V 视频生产线</strong>：V1–V8.6 已完成（真实 AV 默认 local_ffmpeg + edge_tts；图生视频暂缓）</li>
+        <li>路由 L2 语义层与检索增强项（Cross-Encoder 等）</li>
+        <li>独立前端 <strong>media-web</strong>：视频模式含五步进度、HITL 审核、mp4 预览、BGM 上传、对白试听</li>
+        <li>MCP：内置工具可用；视频域 <code>render_shot</code> / <code>continuity_check</code> / <code>compose_timeline</code> 见设计稿</li>
+      </ol>
+    </section>
+
+    <section id="sec-docs-index">
+      <h2>文档索引</h2>
+      <table>
+        <thead><tr><th>文档</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td><a href="ARCHITECTURE.html">ARCHITECTURE.html</a></td><td>架构权威</td></tr>
+          <tr><td><a href="VIDEO_PIPELINE.html">VIDEO_PIPELINE.html</a></td><td>视频生产线设计稿 · Phase V</td></tr>
+          <tr><td><a href="DEVELOPMENT_LOG.html">DEVELOPMENT_LOG.html</a></td><td>本页</td></tr>
+          <tr><td><a href="index.html">index.html</a></td><td>安装运行</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-roadmap">
+      <h2>后续开发计划（自主收录 · 对标成熟产品）</h2>
+      <p>工程师视角维护的待办队列；完成项写入变更记录，不在此重复勾选。</p>
+      <table>
+        <thead><tr><th>优先级</th><th>阶段</th><th>任务</th><th>对标</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>P0</td><td>G1</td><td>大纲闸门：未 approve 禁止长篇生成 + 注入已确认大纲</td><td>LTX Plan 阶段、小说大纲确认</td><td class="status-done">✅ 步骤 47</td></tr>
+          <tr><td>P1</td><td>G2</td><td>视频：大纲确认后一键「按方案生成分镜」REST</td><td>mStudio 策划→分镜</td><td class="status-done">✅ 步骤 48</td></tr>
+          <tr><td>P1</td><td>G3</td><td>字幕烧录进 mp4（ffmpeg subtitles filter）</td><td>成片标配</td><td class="status-done">✅ 步骤 50</td></tr>
+          <tr><td>P2</td><td>D1</td><td>LangGraph 视频子图（替代手点 API）</td><td>管线型产品</td><td class="status-done">✅ 步骤 51</td></tr>
+          <tr><td>P2</td><td>D2</td><td>MCP：render_shot / continuity_check / compose</td><td>Agent 工具化</td><td class="status-done">✅ 步骤 52</td></tr>
+          <tr><td>P3</td><td>D3</td><td>异步 Job Worker + 断点续跑</td><td>长视频生产</td><td class="status-done">✅ 步骤 53</td></tr>
+          <tr><td>P0</td><td>E1</td><td>前端异步管线 UI：run/async 轮询、暂停态、续跑按钮</td><td>可演示不阻塞</td><td class="status-done">✅ 步骤 54</td></tr>
+          <tr><td>P0</td><td>E2</td><td>Alembic video_pipeline_jobs 增量迁移 + async Job API 测试</td><td>小团队可重复部署</td><td class="status-done">✅ 步骤 55</td></tr>
+          <tr><td>P1</td><td>E3</td><td>文档对齐：VIDEO_PIPELINE / roadmap / API 表</td><td>一处权威</td><td class="status-done">✅ 步骤 56</td></tr>
+          <tr><td>P1</td><td>E4</td><td>run_video_demo 覆盖 G2 分镜 + D1 管线 + G3 字幕断言</td><td>一条命令回归</td><td class="status-done">✅ 步骤 57</td></tr>
+          <tr><td>P0</td><td>E5</td><td>pytest 全量 + pnpm build + 演示验收清单</td><td>交付门槛</td><td class="status-done">✅ 步骤 58</td></tr>
+          <tr><td>P0</td><td>C-cleanup</td><td>巧克力文档/配置/死代码瘦身；各项目 README 四应用联调对齐</td><td>数据喂养子系统</td><td>已完成</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sec-changelog">
+      <h2>变更记录</h2>
+      <table>
+        <thead><tr><th>日期</th><th>步骤</th><th>摘要</th></tr></thead>
+        <tbody>
+          <tr><td>2026-07-08</td><td>0</td><td>架构文档与 Skill 目录修正</td></tr>
+          <tr><td>2026-07-08</td><td>1</td><td>ConfigResolver、app.yaml、测试</td></tr>
+          <tr><td>2026-07-08</td><td>2</td><td>Skill Registry 示例</td></tr>
+          <tr><td>2026-07-08</td><td>3</td><td>注释与配置规范</td></tr>
+          <tr><td>2026-07-08</td><td>1b</td><td>app/storage PG+Neo4j 连接与健康检查骨架</td></tr>
+          <tr><td>2026-07-08</td><td>4</td><td>文档改 HTML，删除项目 .md</td></tr>
+          <tr><td>2026-07-08</td><td>5</td><td>Provider Registry 与 OpenAI 兼容 Provider 骨架</td></tr>
+          <tr><td>2026-07-08</td><td>6</td><td>PostgreSQL conversations/messages ORM 与 Repository CRUD</td></tr>
+          <tr><td>2026-07-08</td><td>7</td><td>最小对话图骨架与 AgentState 契约</td></tr>
+          <tr><td>2026-07-08</td><td>8</td><td>POST /api/v1/chat 最小 SSE 接口</td></tr>
+          <tr><td>2026-07-08</td><td>9</td><td>Provider 生成与 PG 持久化接图</td></tr>
+          <tr><td>2026-07-08</td><td>10</td><td>运行环境检查脚本与 PG 快速建表脚本</td></tr>
+          <tr><td>2026-07-08</td><td>11</td><td>多轮 Chat E2E 脚本与 SSE error 事件</td></tr>
+          <tr><td>2026-07-08</td><td>12</td><td>Provider token 级流式输出</td></tr>
+          <tr><td>2026-07-08</td><td>13</td><td>Ingestion Lite chunker / feed_adapter / seed_novel CLI</td></tr>
+          <tr><td>2026-07-09</td><td>14</td><td>真实 LangGraph StateGraph 组图与条件边</td></tr>
+          <tr><td>2026-07-09</td><td>15</td><td>route_question 规则层路由 + MCP Client 空 Stub</td></tr>
+          <tr><td>2026-07-09</td><td>16</td><td>PG documents/chunks 表 + Neo4j 写入与向量索引</td></tr>
+          <tr><td>2026-07-09</td><td>17</td><td>HashingEmbedder 与 DatabaseFeedAdapter 真实写库</td></tr>
+          <tr><td>2026-07-09</td><td>18</td><td>Hybrid 检索链（RRF/Grader/Rerank/Tavily）+ citation SSE</td></tr>
+          <tr><td>2026-07-09</td><td>19</td><td>retention/auto_discover/web_search 配置生效 + 视频创作 Skill</td></tr>
+          <tr><td>2026-07-09</td><td>—</td><td>多轮对话 × 检索综合集成测试，87 测试全通过</td></tr>
+          <tr><td>2026-07-09</td><td>20</td><td>路由级联：关键词可配置 + LLM 结构化路由兜底，99 测试全通过</td></tr>
+          <tr><td>2026-07-09</td><td>21</td><td>字面量治理审计：角色/SSE 字段/协议键/prompt 标题归一权威常量</td></tr>
+          <tr><td>2026-07-09</td><td>22</td><td>Web 支撑 API：GET conversations/messages/skills + CORS</td></tr>
+          <tr><td>2026-07-09</td><td>23</td><td>media-web 创作工作台（SSE 聊天、citation、会话侧栏、Skill 切换）</td></tr>
+          <tr><td>2026-07-09</td><td>24</td><td>智谱 API Embedder（<code>ingestion.embedding.provider: zhipu</code>）+ 失败回退 hashing</td></tr>
+          <tr><td>2026-07-09</td><td>25</td><td>L2 语义路由接入级联（L1 规则 → L2 语义 → L3 LLM）</td></tr>
+          <tr><td>2026-07-09</td><td>26</td><td>LLM Grader + Query Rewrite 回环 + 语义 Rerank</td></tr>
+          <tr><td>2026-07-09</td><td>27</td><td>compact_history 真实压缩（LLM/截断摘要）+ GraphRAG 兜底</td></tr>
+          <tr><td>2026-07-09</td><td>29</td><td>移除 GET /chat 骨架接口；media-web UI 重构（lucide 图标、截断+tooltip）</td></tr>
+          <tr><td>2026-07-09</td><td>30</td><td>蓝魔：creation_type 小说/视频分流 + SSE status 思考态 + media-web 蓝色主题</td></tr>
+          <tr><td>2026-07-09</td><td>31</td><td>视频生产线架构文档 VIDEO_PIPELINE.html + Phase V 待办（仅文档）</td></tr>
+          <tr><td>2026-07-09</td><td>32</td><td>视频架构对标市面工具补全（仅文档）：关键帧先行、风格圣经、HITL 审核态、成本/预算、Provider 能力矩阵、多候选 takes、V8 音频字幕</td></tr>
+          <tr><td>2026-07-09</td><td>33</td><td>Phase V · V1 结构化分镜：shots 表、Repository、video API、submit_storyboard CLI、storyboard Skill JSON 输出</td></tr>
+          <tr><td>2026-07-09</td><td>34</td><td>Phase V · V2 bible：character/scene/prop 表、upsert/list API、validate_entities、upsert_bible / validate_storyboard CLI</td></tr>
+          <tr><td>2026-07-09</td><td>35</td><td>Phase V · V3 Stub 渲染 + 产物导出：render Job、files API、小说 TXT artifact；media-web 打开/下载/预览；文档 §7.5 前后端分工</td></tr>
+          <tr><td>2026-07-09</td><td>36</td><td>Phase V · V4 连续性 QA：规则检查器、POST qa API、qa_attempts 重试上限、run_continuity_qa CLI</td></tr>
+          <tr><td>2026-07-09</td><td>37</td><td>Phase V · V5 时间轴合成 Stub：compose_jobs、POST compose、timeline JSON、run_compose CLI、media-web 成片打开/下载</td></tr>
+          <tr><td>2026-07-09</td><td>38</td><td>Phase V · V6 编排与 HITL：POST review、GET pipeline、video_pipeline_constants、media-web 进度条与待审审核 UI</td></tr>
+          <tr><td>2026-07-09</td><td>39</td><td>Phase V · V7 Provider + 成本：能力矩阵配置、shot_assets.cost、budget 熔断、local_ffmpeg mp4、GET cost API、media-web 成本条与 video 预览</td></tr>
+          <tr><td>2026-07-09</td><td>40</td><td>项目 CRUD + 前端切换器；V8 音频 Stub；规范：media-web 一律 shadcn/ui（禁原生弹窗/DOM）</td></tr>
+          <tr><td>2026-07-10</td><td>41</td><td>video_projects 增 <code>description</code>（选填）；media-web ProjectSummaryCard + CreateProjectDialog 描述 + motion 动效</td></tr>
+          <tr><td>2026-07-10</td><td>43</td><td>阶段 F 澄清：clarification_sessions、SSE clarification_*、ClarificationCard（Cursor 式）</td></tr>
+          <tr><td>2026-07-10</td><td>42</td><td>阶段 E 大纲 HITL：creative_plans 表、REST /creative/plans、SSE outline_*、OutlineReviewPanel</td></tr>
+          <tr><td>2026-07-10</td><td>44</td><td>知识库页复用 ProjectSelect（与工作台项目记忆、新建对齐）</td></tr>
+          <tr><td>2026-07-10</td><td>45</td><td>阶段 B V8.5：edge_tts Provider + ffmpeg compose 音画混轨</td></tr>
+          <tr><td>2026-07-10</td><td>46</td><td>阶段 C：Alembic 基线迁移、test_chat SSE 契约修复、run_video_demo E2E 脚本</td></tr>
+          <tr><td>2026-07-10</td><td>47</td><td>阶段 G1 大纲闸门：未 approve 拦截生成 + approved_outline 注入 prompt + 前端确认后预填 kickoff</td></tr>
+          <tr><td>2026-07-10</td><td>48</td><td>阶段 G2 策划→分镜：POST /creative/plans/{id}/storyboard、模板/LLM 拆镜入库、OutlineReviewPanel 一键按钮</td></tr>
+          <tr><td>2026-07-10</td><td>49</td><td>media-web 动效：顶栏 Tab 滑动指示器 + Dialog Q 弹 spring 弹出（motion_presets）</td></tr>
+          <tr><td>2026-07-10</td><td>50</td><td>阶段 G3 字幕烧录：video.audio.compose.burn_subtitles + ffmpeg subtitles 滤镜；成片响应 subtitles_burned</td></tr>
+          <tr><td>2026-07-10</td><td>51</td><td>阶段 D1 LangGraph 视频子图：validate→review→render→qa→audio→compose + POST pipeline/run + 前端一键跑管线</td></tr>
+          <tr><td>2026-07-10</td><td>52</td><td>阶段 D2 MCP 视频工具：render_shot / continuity_check / compose_timeline 内置工具</td></tr>
+          <tr><td>2026-07-10</td><td>53</td><td>阶段 D3 异步管线 Job：video_pipeline_jobs checkpoint + run/async + jobs/{id}/resume</td></tr>
+          <tr><td>2026-07-10</td><td>54</td><td>阶段 E1 前端异步管线：useVideoPipelineJob 轮询、VideoPipelineJobStatus 续跑、默认 run/async</td></tr>
+          <tr><td>2026-07-10</td><td>55</td><td>阶段 E2 Alembic a1b2c3d4e5f6 video_pipeline_jobs 增量迁移 + test_video_pipeline_async_api</td></tr>
+          <tr><td>2026-07-10</td><td>56</td><td>阶段 E3 文档对齐：VIDEO_PIPELINE Phase E、DEVELOPMENT_LOG roadmap、ARCHITECTURE sec-16</td></tr>
+          <tr><td>2026-07-10</td><td>57</td><td>阶段 E4 run_video_demo --demo-mode pipeline + G2/G3 断言 + --pipeline-mode sync|async</td></tr>
+          <tr><td>2026-07-10</td><td>58</td><td>阶段 E5 验收：179 pytest 通过、pnpm build 通过；演示清单见下</td></tr>
+          <tr><td>2026-07-10</td><td>C0–C2</td><td>巧克力喂养双服务：<code>/feed/v1</code> API、MediaAiFeedWriter 写 PG+Neo4j、hashing/zhipu embedding 对齐；ARCHITECTURE sec-13 契约</td></tr>
+          <tr><td>2026-07-10</td><td>C3–C4</td><td><code>E:\test\deploy</code> Compose 骨架 + <code>chocolate-web</code> 喂养运营台脚手架</td></tr>
+          <tr><td>2026-07-10</td><td>C-deps</td><td>chocolate <code>pyproject.toml</code> 与 media.ai 对齐：Python <code>&gt;=3.10,&lt;4.0</code>、fastapi/uvicorn/sqlalchemy/psycopg/neo4j/httpx 同版本区间；清华 tuna 主源</td></tr>
+          <tr><td>2026-07-10</td><td>C-py313</td><td>chocolate Python 固定 <code>&gt;=3.13,&lt;3.14</code>（whisper/numba 兼容）；显式锁定 numba 0.61 + llvmlite 0.44；Dockerfile 3.13-slim</td></tr>
+          <tr><td>2026-07-10</td><td>C1-slim</td><td>巧克力瘦身：删除 Chroma/Meili/retrieval/agent/llm；保留 processing + feed；前端更名「巧克力」+ icon.svg</td></tr>
+          <tr><td>2026-07-10</td><td>C-cleanup</td><td>巧克力文档/配置瘦身：删除 docs 旧 RAG 文档、死代码（management/session/schemas/cross_encoder）、精简 app_config.json 与 config.py</td></tr>
+          <tr><td>2026-07-13</td><td>59</td><td>Alembic b7c8d9e0f1a2：增量创建 clarification_sessions；附 SQL 手动修复脚本</td></tr>
+          <tr><td>2026-07-13</td><td>60</td><td>conversations.creation_type + API 返回；media-web 打开历史自动切 Tab、手动切换开新对话</td></tr>
+          <tr><td>2026-07-13</td><td>60</td><td>澄清 brief 智能提取：brief 已写时长/风格则跳过对应偏好题；大纲 <code>target_duration_sec</code> 随摘要解析（修复 30s 偏好却出 60s 方案）</td></tr>
+          <tr><td>2026-07-13</td><td>K1</td><td>知识库全 UI：POST/DELETE/chunks API + media-web 文档 Tab（导入/删除/chunk 预览）；txt/md/pdf/docx 提取器</td></tr>
+          <tr><td>2026-07-13</td><td>K2</td><td>Style Bible 全 UI：Bible DELETE API + 知识库 Style Bible Tab（CRUD/校验/缺失 ID 从分镜移除/style_bible PATCH）；工作台「去补全 Bible」联动</td></tr>
+          <tr><td>2026-07-13</td><td>K2b</td><td>废弃「补回占位条目」：新增 POST strip-shot-refs，缺失 ID 横幅与删除确认改为从分镜移除引用</td></tr>
+          <tr><td>2026-07-13</td><td>K2c</td><td>validate_entities 支持重新校验 rejected 镜头；补全 Bible 后手动校验/跑管线可解除阻断</td></tr>
+          <tr><td>2026-07-13</td><td>K3</td><td>PG Engine 单例复用连接池（修复 too many clients）；Job 轮询 5s</td></tr>
+          <tr><td>2026-07-13</td><td>K3</td><td>media-web sonner 轻提示：操作/校验错误不再写入对话面板；大纲三按钮独立 loading</td></tr>
+          <tr><td>2026-07-13</td><td>K4</td><td>Neo4j Driver 单例复用连接池；<code>neo4j_session_scope</code> 用完即 close Session（与 PG 同模式）</td></tr>
+          <tr><td>2026-07-13</td><td>61</td><td>Stub→真实 AV：app.yaml 默认 local_ffmpeg + edge_tts；ffmpeg 503 明确错误；run_video_demo --av-mode real</td></tr>
+          <tr><td>2026-07-13</td><td>63</td><td>media-web 一键管线 UX：移除 3–6 分步按钮；运行态卡片（步骤/错误/BGM 暂停续跑）</td></tr>
+        </tbody>
+      </table>
+      <h3 id="sec-e5-demo-checklist">E5 手工演示清单（本地演示档）</h3>
+      <ul>
+        <li>大纲确认 → 按方案生成分镜 → 一键跑管线（async）→ 待审镜头 approve → 续跑 → 下载成片</li>
+        <li><code>poetry run python scripts/run_video_demo.py --demo-mode pipeline</code>（sync）与 <code>--pipeline-mode async</code> 各跑一次</li>
+        <li>字幕烧录：<code>video.audio.compose.burn_subtitles</code> 开启时 pipeline 响应 <code>compose_output.subtitles_burned</code> 为 true</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>lanmo 开发进度日志 · 2026-07-13</p>
+      <p><a href="index.html">项目入门</a> · <a href="ARCHITECTURE.html">架构设计</a> · <a href="VIDEO_PIPELINE.html">视频生产线</a></p>
+      <p>规则：<code>.cursor/rules/doc-sync.mdc</code> · <code>docs-html-only.mdc</code></p>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
